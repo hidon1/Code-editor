@@ -144,29 +144,9 @@
         .tab-close:hover { background:#ff4444; color:white; }
         .editor-wrapper { flex:1; position:relative; min-height:0; background:#1e1e2e; }
         [data-theme="light"] .editor-wrapper { background:#f8f9fc; }
-        .line-numbers {
-            position: absolute;
-            top: 0;
-            left: 0;
-            bottom: 0;
-            width: 56px;
-            border-right: 1px solid var(--border);
-            background: rgba(0,0,0,0.18);
-            color: var(--text-muted);
-            font-family:'Courier New','Consolas',monospace;
-            font-size:15px;
-            line-height:1.75;
-            text-align: right;
-            padding: 28px 8px 28px 6px;
-            overflow: hidden;
-            user-select: none;
-        }
-        [data-theme="light"] .line-numbers { background: rgba(0,0,0,0.03); }
         #code-editor {
             position:absolute; inset:0; width:100%; height:100%;
             background:#1e1e2e; color:#cdd6f4;
-            font-family:'Courier New','Consolas',monospace; font-size:15px; line-height:1.75;
-            padding:28px 36px 28px 72px; border:none; outline:none; resize:none; overflow:auto;
             direction:ltr; box-shadow:inset 0 0 60px rgba(0,0,0,0.4);
         }
         [data-theme="light"] #code-editor { background:#f8f9fc; color:#1a1a2e; }
@@ -479,8 +459,7 @@
     <div class="editor-area">
         <div class="tabs" id="tabs-container"></div>
         <div class="editor-wrapper">
-            <div class="line-numbers" id="line-numbers">1</div>
-            <textarea id="code-editor" spellcheck="false" placeholder="כתוב את הקוד כאן..."></textarea>
+            <div id="code-editor" aria-label="Code editor"></div>
             <div class="drop-zone" id="drop-zone">
                 <i class="fas fa-cloud-upload-alt" style="font-size:68px;opacity:0.6;"></i>
                 <div>גרור קובץ לכאן</div>
@@ -714,6 +693,7 @@
     <span id="toast-text"></span>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs/loader.min.js"></script>
 <script>
 /* ═══════════════════════════════════════════════
    STATE
@@ -729,7 +709,36 @@ let currentUser = null;
 let _shareUrl = '';
 let _authMode = 'login'; // 'login' | 'register'
 
-const editor        = document.getElementById('code-editor');
+const editorElement = document.getElementById('code-editor');
+let monacoEditor = null;
+let monacoReady = null;
+let editorBuffer = '';
+const editor = {
+    get value() { return monacoEditor ? monacoEditor.getValue() : editorBuffer; },
+    set value(val) {
+        const nextValue = val || '';
+        editorBuffer = nextValue;
+        if (!monacoEditor) return;
+        if (monacoEditor.getValue() !== nextValue) monacoEditor.setValue(nextValue);
+    },
+    focus() { if (monacoEditor) monacoEditor.focus(); },
+    setSelectionRange(start, end) {
+        if (!monacoEditor || !window.monaco) return;
+        const model = monacoEditor.getModel();
+        if (!model) return;
+        const s = model.getPositionAt(start);
+        const e = model.getPositionAt(end);
+        monacoEditor.setSelection(new monaco.Range(s.lineNumber, s.column, e.lineNumber, e.column));
+        monacoEditor.revealRangeInCenter(monacoEditor.getSelection());
+    },
+    get scrollTop() { return monacoEditor ? monacoEditor.getScrollTop() : 0; },
+    set scrollTop(value) { if (monacoEditor) monacoEditor.setScrollTop(value); },
+    addEventListener(type, handler) {
+        if (!monacoEditor) return;
+        if (type === 'input') monacoEditor.onDidChangeModelContent(() => handler());
+        if (type === 'scroll') monacoEditor.onDidScrollChange(() => handler());
+    }
+};
 const preview       = document.getElementById('preview');
 const tabsContainer = document.getElementById('tabs-container');
 const toast         = document.getElementById('toast');
@@ -737,7 +746,6 @@ const toastText     = document.getElementById('toast-text');
 const toastIcon     = document.getElementById('toast-icon');
 const dropZone      = document.getElementById('drop-zone');
 const aiMessages    = document.getElementById('ai-messages');
-const lineNumbers   = document.getElementById('line-numbers');
 const codeSearchInput = document.getElementById('code-search-input');
 const codeReplaceInput = document.getElementById('code-replace-input');
 const searchPanel = document.getElementById('search-results-panel');
@@ -1044,15 +1052,10 @@ function updateStats() {
     const lines = editor.value.split('\n').length;
     document.getElementById('line-count').textContent = lines;
     document.getElementById('char-count').textContent = editor.value.length;
-    renderLineNumbers(lines);
-}
-
-function renderLineNumbers(lines) {
-    lineNumbers.innerHTML = Array.from({ length: lines }, (_, i) => `<div>${i + 1}</div>`).join('');
 }
 
 function syncLineNumberScroll() {
-    lineNumbers.scrollTop = editor.scrollTop;
+    return;
 }
 
 function escapeRegExp(str) {
@@ -1128,6 +1131,9 @@ function saveToStorage() {
 
 function toggleTheme() {
     document.body.dataset.theme = document.body.dataset.theme === 'light' ? 'dark' : 'light';
+    if (monacoEditor && window.monaco) {
+        monaco.editor.setTheme(document.body.dataset.theme === 'light' ? 'vs' : 'vs-dark');
+    }
 }
 
 /* ═══════════════════════════════════════════════
@@ -1184,8 +1190,8 @@ async function loadCloudWorkspace() {
         files    = (ws.files    || []).map(f => ({ id: f.id || Date.now(), name: f.name, content: f.content || '' }));
         projects = ws.projects  || [];
         currentFileIndex = files.length > 0 ? 0 : -1;
-        if (files.length > 0) { editor.value = files[0].content; document.getElementById('current-file-name').textContent = files[0].name; }
-        else editor.value = '';
+        if (files.length > 0) { editor.value = files[0].content; setEditorLanguageByFilename(files[0].name); document.getElementById('current-file-name').textContent = files[0].name; }
+        else { editor.value = ''; setEditorLanguageByFilename(''); }
         renderProjectsAndFiles(); renderTabs(); updateStats(); saveToStorage();
         closeCloudModal();
         showToast("הפרויקטים נטענו מהענן!", "check-circle", "#22c55e");
@@ -1433,6 +1439,7 @@ function openFile(i) {
     if (i < 0 || i >= files.length) return;
     currentFileIndex = i;
     editor.value = files[i].content || '';
+    setEditorLanguageByFilename(files[i].name);
     document.getElementById('current-file-name').textContent = files[i].name;
     renderProjectsAndFiles(); renderTabs(); livePreview(); updateStats();
     recalculateSearchResults();
@@ -1440,7 +1447,7 @@ function openFile(i) {
 
 function closeTab(i) {
     if (files.length === 1) {
-        files = []; currentFileIndex = -1; editor.value = '';
+        files = []; currentFileIndex = -1; editor.value = ''; setEditorLanguageByFilename('');
         document.getElementById('current-file-name').textContent = 'אין קבצים';
     } else {
         if (i === currentFileIndex) currentFileIndex = i > 0 ? i-1 : 0;
@@ -1458,6 +1465,7 @@ function newFile() {
         content: `<!DOCTYPE html>\n<html lang="he" dir="rtl">\n<head>\n    <meta charset="UTF-8">\n    <title>קובץ חדש</title>\n</head>\n<body>\n    <h1>שלום עולם</h1>\n</body>\n</html>` };
     files.push(f); currentFileIndex = files.length - 1;
     editor.value = f.content;
+    setEditorLanguageByFilename(f.name);
     document.getElementById('current-file-name').textContent = f.name;
     renderProjectsAndFiles(); renderTabs(); saveToStorage();
     updateStats();
@@ -1474,6 +1482,7 @@ function triggerFileUpload() {
             const f = { id: Date.now(), name: file.name, content: ev.target.result };
             files.push(f); currentFileIndex = files.length - 1;
             editor.value = f.content;
+            setEditorLanguageByFilename(f.name);
             document.getElementById('current-file-name').textContent = f.name;
             renderProjectsAndFiles(); renderTabs(); livePreview(); saveToStorage();
             updateStats();
@@ -1651,6 +1660,7 @@ function setupDragAndDrop() {
             const f = { id: Date.now(), name: file.name, content: ev.target.result };
             files.push(f); currentFileIndex = files.length-1;
             editor.value = f.content;
+            setEditorLanguageByFilename(f.name);
             document.getElementById('current-file-name').textContent = f.name;
             renderProjectsAndFiles(); renderTabs(); livePreview(); saveToStorage();
             updateStats();
@@ -1679,15 +1689,8 @@ function init() {
     }
 
     currentFileIndex = 0;
-    editor.value = files[0].content;
     document.getElementById('current-file-name').textContent = files[0].name;
-    renderProjectsAndFiles(); renderTabs(); updateStats();
-
-    editor.addEventListener('input', () => {
-        if (currentFileIndex >= 0) files[currentFileIndex].content = editor.value;
-        livePreview(); updateStats(); recalculateSearchResults(true);
-    });
-    editor.addEventListener('scroll', syncLineNumberScroll);
+    renderProjectsAndFiles(); renderTabs();
     codeSearchInput.addEventListener('keydown', e => {
         if (e.key === 'Enter') {
             e.preventDefault();
@@ -1727,7 +1730,71 @@ function init() {
         }
     }, 3000);
 
-    setTimeout(() => showToast("ברוך הבא ל-CodeSphere", "cube", "#00d4ff"), 600);
+    initMonacoEditor().then(() => {
+        editor.value = files[0].content;
+        setEditorLanguageByFilename(files[0].name);
+        updateStats();
+        editor.addEventListener('input', () => {
+            if (currentFileIndex >= 0) files[currentFileIndex].content = editor.value;
+            livePreview(); updateStats(); recalculateSearchResults(true);
+        });
+        editor.addEventListener('scroll', syncLineNumberScroll);
+        setTimeout(() => showToast("ברוך הבא ל-CodeSphere", "cube", "#00d4ff"), 600);
+    });
+}
+
+function setEditorLanguageByFilename(filename = '') {
+    if (!monacoEditor || !window.monaco) return;
+    const ext = (filename.split('.').pop() || '').toLowerCase();
+    const languageMap = { html: 'html', htm: 'html', css: 'css', js: 'javascript', json: 'json' };
+    monaco.editor.setModelLanguage(monacoEditor.getModel(), languageMap[ext] || 'plaintext');
+}
+
+function registerHtmlSnippets() {
+    monaco.languages.registerCompletionItemProvider('html', {
+        provideCompletionItems: () => ({
+            suggestions: [
+                { label: 'html5', kind: monaco.languages.CompletionItemKind.Snippet, documentation: 'HTML5 template', insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, insertText: ['<!DOCTYPE html>', '<html lang="he" dir="rtl">', '<head>', '\t<meta charset="UTF-8">', '\t<meta name="viewport" content="width=device-width, initial-scale=1.0">', '\t<title>${1:Document}</title>', '</head>', '<body>', '\t$0', '</body>', '</html>'].join('\n') },
+                { label: 'body', kind: monaco.languages.CompletionItemKind.Snippet, documentation: 'Body tag', insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, insertText: '<body>\n\t$0\n</body>' },
+                { label: 'div', kind: monaco.languages.CompletionItemKind.Snippet, documentation: 'Div block', insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, insertText: '<div>$0</div>' },
+                { label: 'script', kind: monaco.languages.CompletionItemKind.Snippet, documentation: 'Script tag', insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, insertText: '<script>\n\t$0\n</script>' },
+                { label: 'style', kind: monaco.languages.CompletionItemKind.Snippet, documentation: 'Style tag', insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet, insertText: '<style>\n\t$0\n</style>' }
+            ]
+        })
+    });
+}
+
+function initMonacoEditor() {
+    if (monacoReady) return monacoReady;
+    monacoReady = new Promise(resolve => {
+        window.require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs' } });
+        window.require(['vs/editor/editor.main'], () => {
+            registerHtmlSnippets();
+            monacoEditor = monaco.editor.create(editorElement, {
+                value: editorBuffer,
+                language: 'html',
+                theme: document.body.dataset.theme === 'light' ? 'vs' : 'vs-dark',
+                automaticLayout: true,
+                lineNumbers: 'on',
+                minimap: { enabled: false },
+                fontSize: 15,
+                quickSuggestions: { other: true, comments: false, strings: true },
+                suggestOnTriggerCharacters: true,
+                snippetSuggestions: 'top',
+                autoClosingBrackets: 'always',
+                autoClosingQuotes: 'always',
+                autoClosingDelete: 'always',
+                autoClosingOvertype: 'always',
+                autoClosingComments: 'always',
+                linkedEditing: true
+            });
+            monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Space, () => {
+                monacoEditor.trigger('keyboard', 'editor.action.triggerSuggest', {});
+            });
+            resolve();
+        });
+    });
+    return monacoReady;
 }
 
 window.onload = init;
