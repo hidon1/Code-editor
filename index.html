@@ -407,13 +407,12 @@
         <div class="editor-toolbar">
             <i class="fas fa-search" style="color:var(--primary);"></i>
             <input type="text" id="code-search-input" placeholder="חיפוש בקוד...">
-            <input type="text" id="code-replace-input" placeholder="החלפה ל...">
-            <button class="btn" onclick="goToSearchMatch(-1)"><i class="fas fa-chevron-up"></i></button>
             <button class="btn" onclick="goToSearchMatch(1)"><i class="fas fa-chevron-down"></i></button>
-            <button class="btn" onclick="replaceCurrentMatch()"><i class="fas fa-pen"></i> החלף</button>
             <div id="search-inline-count" style="font-size:12px;color:var(--text-muted);">0 תוצאות</div>
             <div class="search-results-panel" id="search-results-panel">
-                <span id="search-result-label">לא נמצאו תוצאות</span>
+                <label for="code-replace-input" style="font-size:12px;color:var(--text-muted);">החלף ל</label>
+                <input type="text" id="code-replace-input" placeholder="טקסט חלופי...">
+                <button class="btn" onclick="replaceCurrentMatch()"><i class="fas fa-pen"></i> החלף</button>
                 <button class="btn btn-primary" onclick="replaceAllMatches()"><i class="fas fa-wand-magic-sparkles"></i> החלף הכל</button>
             </div>
         </div>
@@ -428,8 +427,6 @@
         <div class="status-bar">
             <div>שורות: <span id="line-count">1</span></div>
             <div>תווים: <span id="char-count">0</span></div>
-            <div>שורה נוכחית: <span id="cursor-line">1</span></div>
-            <div>תו נוכחי: <span id="cursor-char">1</span></div>
             <div id="current-file-name">index.html</div>
             <div style="margin-right:auto;color:var(--primary);cursor:pointer;" onclick="formatCode()">
                 <i class="fas fa-magic"></i> יפה
@@ -578,18 +575,6 @@
             <i class="fas fa-clock"></i> לא עכשיו
         </button>
         <p class="auth-later-hint">ניתן להמשיך בעריכה ללא חשבון.<br>חשבון נדרש לשמירה ושיתוף בענן.</p>
-    </div>
-</div>
-
-<!-- ═══ MODAL: Save As ═══ -->
-<div class="modal" id="save-modal">
-    <div class="modal-content">
-        <h2 style="color:var(--primary);margin-bottom:14px;"><i class="fas fa-save"></i> שמור בשם</h2>
-        <input type="text" id="filename-input" value="index.html" class="modal-input">
-        <div class="modal-actions">
-            <button onclick="closeSaveModal()" class="btn" style="background:#444;color:white;">ביטול</button>
-            <button onclick="confirmSaveAs()" class="btn btn-primary"><i class="fas fa-download"></i> שמור למחשב</button>
-        </div>
     </div>
 </div>
 
@@ -990,7 +975,6 @@ function updateStats() {
     document.getElementById('line-count').textContent = lines;
     document.getElementById('char-count').textContent = editor.value.length;
     renderLineNumbers(lines);
-    updateCursorStats();
 }
 
 function renderLineNumbers(lines) {
@@ -1001,20 +985,11 @@ function syncLineNumberScroll() {
     lineNumbers.scrollTop = editor.scrollTop;
 }
 
-function updateCursorStats() {
-    const cursorIndex = editor.selectionStart;
-    const valueBeforeCursor = editor.value.slice(0, cursorIndex);
-    const line = valueBeforeCursor.split('\n').length;
-    const col = cursorIndex - valueBeforeCursor.lastIndexOf('\n');
-    document.getElementById('cursor-line').textContent = line;
-    document.getElementById('cursor-char').textContent = col;
-}
-
 function escapeRegExp(str) {
     return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function recalculateSearchResults(keepIndex = false) {
+function recalculateSearchResults(keepIndex = false, forceClosePanel = false) {
     const term = codeSearchInput.value;
     searchMatches = [];
     if (term) {
@@ -1027,15 +1002,14 @@ function recalculateSearchResults(keepIndex = false) {
     }
     if (!keepIndex) currentSearchMatchIndex = searchMatches.length > 0 ? 0 : -1;
     if (keepIndex && currentSearchMatchIndex >= searchMatches.length) currentSearchMatchIndex = searchMatches.length - 1;
-    updateSearchUI();
+    updateSearchUI(forceClosePanel);
 }
 
-function updateSearchUI() {
+function updateSearchUI(forceClosePanel = false) {
     const total = searchMatches.length;
     const current = total > 0 ? currentSearchMatchIndex + 1 : 0;
     document.getElementById('search-inline-count').textContent = total === 0 ? '0 תוצאות' : `${current}/${total} תוצאות`;
-    document.getElementById('search-result-label').textContent = total === 0 ? 'לא נמצאו תוצאות' : `נמצאו ${total} תוצאות`;
-    searchPanel.classList.toggle('show', codeSearchInput.value.trim().length > 0);
+    searchPanel.classList.toggle('show', !forceClosePanel && codeSearchInput.value.trim().length > 0);
     if (currentSearchMatchIndex >= 0 && total > 0) {
         const currentMatch = searchMatches[currentSearchMatchIndex];
         editor.focus();
@@ -1436,28 +1410,39 @@ function quickSave() {
     showToast("נשמר", "check-circle", "#22c55e");
 }
 
-function saveAsFile() {
+async function saveAsFile() {
     if (currentFileIndex < 0) { showToast("אין קובץ", "exclamation-circle", "#ff9800"); return; }
-    document.getElementById('filename-input').value = files[currentFileIndex].name;
-    document.getElementById('save-modal').style.display = 'flex';
-}
-
-function confirmSaveAs() {
-    const filename = document.getElementById('filename-input').value || 'index.html';
-    if (currentFileIndex >= 0) {
-        files[currentFileIndex].name = filename;
-        document.getElementById('current-file-name').textContent = filename;
-        const blob = new Blob([editor.value], { type: 'text/html' });
-        const url  = URL.createObjectURL(blob);
-        const a    = document.createElement('a');
-        a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
-        renderProjectsAndFiles(); renderTabs(); saveToStorage();
-        showToast(`${filename} ירד למחשב`);
+    const currentName = files[currentFileIndex].name || 'index.html';
+    if ('showSaveFilePicker' in window) {
+        try {
+            const handle = await window.showSaveFilePicker({
+                suggestedName: currentName,
+                types: [{
+                    description: 'Code files',
+                    accept: { 'text/plain': ['.html', '.htm', '.css', '.js', '.txt'] }
+                }]
+            });
+            const writable = await handle.createWritable();
+            await writable.write(editor.value);
+            await writable.close();
+            files[currentFileIndex].name = handle.name || currentName;
+            document.getElementById('current-file-name').textContent = files[currentFileIndex].name;
+            renderProjectsAndFiles(); renderTabs(); saveToStorage();
+            showToast(`${files[currentFileIndex].name} נשמר למחשב`);
+            return;
+        } catch (e) {
+            if (e.name === 'AbortError') return;
+        }
     }
-    closeSaveModal();
+    const blob = new Blob([editor.value], { type: 'text/html' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = currentName;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast(`${currentName} ירד למחשב`);
 }
-
-function closeSaveModal() { document.getElementById('save-modal').style.display = 'none'; }
 
 /* ═══════════════════════════════════════════════
    PROJECT OPS
@@ -1621,15 +1606,10 @@ function init() {
         livePreview(); updateStats(); recalculateSearchResults(true);
     });
     editor.addEventListener('scroll', syncLineNumberScroll);
-    editor.addEventListener('keyup', updateCursorStats);
-    editor.addEventListener('click', updateCursorStats);
-    editor.addEventListener('select', updateCursorStats);
-
-    codeSearchInput.addEventListener('input', () => recalculateSearchResults());
     codeSearchInput.addEventListener('keydown', e => {
         if (e.key === 'Enter') {
             e.preventDefault();
-            goToSearchMatch(1);
+            recalculateSearchResults();
         }
     });
     codeReplaceInput.addEventListener('keydown', e => {
