@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CodeSphere - צפייה בפרויקט</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/js/all.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600&family=Space+Grotesk:wght@500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #00d4ff;
+            --bg: #0a0a0f;
+            --surface: #12121a;
+            --surface2: #1a1a24;
+            --text: #e0e0ff;
+            --text-muted: #a0a0cc;
+            --border: #25253a;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Heebo', sans-serif; background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+
+        /* Header */
+        .vheader {
+            height: 54px; background: rgba(18,18,26,0.97); backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border); display: flex; align-items: center;
+            padding: 0 16px; gap: 16px; flex-shrink: 0;
+        }
+        .vlogo {
+            font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600;
+            background: linear-gradient(90deg, var(--primary), #7b5eff);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; white-space: nowrap;
+            display: flex; align-items: center; gap: 7px;
+        }
+        .vsep { width: 1px; height: 24px; background: var(--border); }
+        .vproject-name { font-weight: 600; color: var(--text); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .vbtn {
+            padding: 7px 14px; border-radius: 9px; border: none; cursor: pointer;
+            background: var(--surface2); color: var(--text); font-size: 13px; font-weight: 500;
+            display: flex; align-items: center; gap: 7px; text-decoration: none; transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .vbtn:hover { filter: brightness(1.2); }
+        .vbtn-primary { background: var(--primary); color: #000; font-weight: 600; }
+
+        /* File Tabs */
+        .vtabs {
+            display: flex; background: var(--surface2); border-bottom: 1px solid var(--border);
+            min-height: 42px; overflow-x: auto; flex-shrink: 0;
+        }
+        .vtab {
+            padding: 0 18px; display: flex; align-items: center; gap: 8px;
+            border-right: 1px solid var(--border); cursor: pointer; white-space: nowrap;
+            font-size: 13px; color: var(--text-muted); transition: all 0.15s; position: relative;
+        }
+        .vtab:hover { background: var(--surface); color: var(--text); }
+        .vtab.active { background: var(--surface); color: var(--primary); }
+        .vtab.active::after {
+            content: ''; position: absolute; bottom: 0; left: 0; right: 0;
+            height: 2px; background: var(--primary);
+        }
+
+        /* Loading / Error */
+        .vloading {
+            flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            gap: 16px; color: var(--text-muted); font-size: 16px;
+        }
+        .vloading .spin { font-size: 40px; color: var(--primary); animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .verror { color: #ff5555; }
+        .verror-icon { font-size: 48px; margin-bottom: 8px; }
+
+        /* Iframe */
+        #vframe {
+            flex: 1; border: none; background: white;
+            display: none; width: 100%; min-height: 0;
+        }
+
+        /* Metadata bar */
+        .vmeta {
+            height: 28px; background: var(--surface2); border-top: 1px solid var(--border);
+            display: flex; align-items: center; padding: 0 16px; gap: 20px;
+            font-size: 11px; color: var(--text-muted); flex-shrink: 0;
+        }
+        .vmeta a { color: var(--primary); text-decoration: none; }
+        .vmeta a:hover { text-decoration: underline; }
+
+        /* Copy link button */
+        .copy-link-btn {
+            padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border);
+            background: none; color: var(--text-muted); cursor: pointer; font-size: 11px;
+            transition: all 0.15s;
+        }
+        .copy-link-btn:hover { color: var(--primary); border-color: var(--primary); }
+    </style>
+</head>
+<body>
+    <header class="vheader">
+        <div class="vlogo"><i class="fas fa-cube"></i> CodeSphere</div>
+        <div class="vsep"></div>
+        <div class="vproject-name" id="vproject-name">טוען...</div>
+        <button class="copy-link-btn" onclick="copyCurrentLink()" title="העתק קישור לדף זה">
+            <i class="fas fa-link"></i> העתק קישור
+        </button>
+        <a href="index.html" class="vbtn"><i class="fas fa-code"></i> פתח עורך</a>
+    </header>
+
+    <div class="vtabs" id="vtabs" style="display:none;"></div>
+
+    <div class="vloading" id="vloading">
+        <i class="fas fa-circle-notch spin"></i>
+        <span>טוען פרויקט...</span>
+    </div>
+
+    <iframe id="vframe"></iframe>
+
+    <div class="vmeta" id="vmeta" style="display:none;">
+        <span id="vmeta-info"></span>
+        <span style="margin-right:auto;"></span>
+        <a href="index.html">✏️ ערוך בעורך</a>
+    </div>
+
+    <script>
+        let shareFiles = [];
+        let currentBlobUrl = null;
+
+        function showError(msg) {
+            const el = document.getElementById('vloading');
+            el.innerHTML = `<i class="fas fa-triangle-exclamation verror-icon verror"></i><span class="verror">${msg}</span>`;
+        }
+
+        function switchFile(index) {
+            if (!shareFiles[index]) return;
+            document.querySelectorAll('.vtab').forEach((t, i) => t.classList.toggle('active', i === index));
+            if (currentBlobUrl) URL.revokeObjectURL(currentBlobUrl);
+            const blob = new Blob([shareFiles[index].content], { type: 'text/html' });
+            currentBlobUrl = URL.createObjectURL(blob);
+            const frame = document.getElementById('vframe');
+            frame.src = currentBlobUrl;
+            frame.style.display = 'block';
+            document.getElementById('vmeta').style.display = 'flex';
+        }
+
+        function renderProject(data) {
+            const name = data.projectName || 'פרויקט';
+            document.title = `CodeSphere — ${name}`;
+            document.getElementById('vproject-name').textContent = name;
+            shareFiles = data.files || [];
+
+            if (shareFiles.length === 0) { showError('הפרויקט ריק'); return; }
+
+            // Build tabs
+            const tabs = document.getElementById('vtabs');
+            tabs.innerHTML = shareFiles.map((f, i) => `
+                <div class="vtab ${i===0?'active':''}" onclick="switchFile(${i})">
+                    <i class="fas fa-file-code" style="font-size:11px;"></i>
+                    ${f.name}
+                </div>
+            `).join('');
+
+            if (shareFiles.length > 1) tabs.style.display = 'flex';
+
+            const created = data.createdAt?.toDate?.();
+            document.getElementById('vmeta-info').textContent =
+                `${shareFiles.length} קבצים${created ? ' • ' + created.toLocaleDateString('he-IL') : ''}`;
+
+            document.getElementById('vloading').style.display = 'none';
+
+            // Find and render the best file (index.html first)
+            const mainIdx = shareFiles.findIndex(f => f.name.toLowerCase() === 'index.html')
+                ?? shareFiles.findIndex(f => f.name.match(/\.html?$/i))
+                ?? 0;
+
+            switchFile(mainIdx >= 0 ? mainIdx : 0);
+        }
+
+        function copyCurrentLink() {
+            navigator.clipboard.writeText(location.href).then(() => {
+                const btn = document.querySelector('.copy-link-btn');
+                btn.innerHTML = '<i class="fas fa-check"></i> הועתק!';
+                setTimeout(() => { btn.innerHTML = '<i class="fas fa-link"></i> העתק קישור'; }, 2000);
+            });
+        }
+
+        // Load share from Firestore
+        (async function() {
+            const id = new URLSearchParams(location.search).get('id');
+            if (!id) { showError('לא נמצא מזהה שיתוף בכתובת'); return; }
+
+            try {
+                const { initializeApp } = await import('https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js');
+                const { getFirestore, doc, getDoc } = await import('https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js');
+
+                const app = initializeApp({
+                    apiKey: "AIzaSyCRT2Bgu1V4RAjhR5CiTSjAgkKJQmXh2vc",
+                    authDomain: "code-editor-4c979.firebaseapp.com",
+                    projectId: "code-editor-4c979",
+                    storageBucket: "code-editor-4c979.firebasestorage.app",
+                    messagingSenderId: "309267976559",
+                    appId: "1:309267976559:web:5af8aa2e56146cc276d89a"
+                });
+
+                const db = getFirestore(app);
+                const snap = await getDoc(doc(db, 'codesphere_shares', id));
+
+                if (!snap.exists()) { showError('הפרויקט לא נמצא או שהקישור פג תוקף'); return; }
+
+                renderProject(snap.data());
+
+            } catch(err) {
+                showError('שגיאה בטעינת הפרויקט: ' + err.message);
+            }
+        })();
+    </script>
+</body>
+</html>

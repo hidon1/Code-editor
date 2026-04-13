@@ -1,0 +1,1478 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CodeSphere - עורך קוד</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/js/all.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600&family=Space+Grotesk:wght@500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #00d4ff;
+            --bg: #0a0a0f;
+            --surface: #12121a;
+            --surface2: #1a1a24;
+            --text: #e0e0ff;
+            --text-muted: #a0a0cc;
+            --border: #25253a;
+        }
+        [data-theme="light"] {
+            --primary: #0066ff;
+            --bg: #f8f9fc;
+            --surface: #ffffff;
+            --surface2: #f1f3f9;
+            --text: #1a1a2e;
+            --text-muted: #555577;
+            --border: #e0e0e8;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Heebo', sans-serif; background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; }
+
+        /* ── HEADER ── */
+        .header {
+            position: fixed; top: 0; left: 0; right: 0; height: 54px;
+            background: rgba(18,18,26,0.97); backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border); z-index: 1000;
+            display: flex; align-items: center; padding: 0 12px;
+            justify-content: space-between; gap: 8px;
+        }
+        [data-theme="light"] .header { background: rgba(255,255,255,0.97); }
+        .header-left { display: flex; align-items: center; gap: 10px; }
+        .logo {
+            display: flex; align-items: center; gap: 8px;
+            font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 600;
+            background: linear-gradient(90deg, var(--primary), #7b5eff);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; white-space: nowrap;
+        }
+        .hamburger-btn {
+            width: 38px; height: 38px; display: flex; align-items: center; justify-content: center;
+            font-size: 20px; cursor: pointer; border-radius: 10px; transition: background 0.2s; color: var(--text);
+        }
+        .hamburger-btn:hover { background: var(--surface2); }
+        .nav-actions { display: flex; align-items: center; gap: 5px; flex-wrap: nowrap; }
+        .btn {
+            padding: 7px 12px; border-radius: 9px; font-weight: 500; cursor: pointer;
+            transition: all 0.2s; display: flex; align-items: center; gap: 6px;
+            font-size: 13px; border: none; background: var(--surface2); color: var(--text); white-space: nowrap;
+        }
+        .btn:hover { filter: brightness(1.15); transform: translateY(-1px); }
+        .btn-primary { background: var(--primary); color: #000; font-weight: 600; }
+        .btn-danger  { background: #ff4444; color: white; }
+        .btn-icon {
+            width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center;
+            background: var(--surface2); cursor: pointer; border: none; color: var(--text); font-size: 14px; transition: all 0.2s;
+        }
+        .btn-icon:hover { filter: brightness(1.2); transform: translateY(-1px); }
+
+        /* Cloud + auth status dot */
+        #cloud-status-dot {
+            width: 8px; height: 8px; border-radius: 50%; background: #555;
+            display: inline-block; flex-shrink: 0; transition: background 0.4s;
+        }
+        #cloud-status-dot.ok      { background: #22c55e; }
+        #cloud-status-dot.saving  { background: #ff9800; animation: blink .6s infinite; }
+        #cloud-status-dot.noauth  { background: #ff9800; }
+        #cloud-status-dot.error   { background: #ff5555; }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.35} }
+
+        /* User avatar chip in header */
+        .user-chip {
+            display: flex; align-items: center; gap: 7px; padding: 4px 10px 4px 6px;
+            border-radius: 20px; background: var(--surface2); cursor: pointer;
+            font-size: 12px; border: 1px solid var(--border); transition: all 0.2s;
+        }
+        .user-chip:hover { border-color: var(--primary); }
+        .user-avatar {
+            width: 24px; height: 24px; border-radius: 50%; background: var(--primary);
+            display: flex; align-items: center; justify-content: center; font-size: 11px;
+            font-weight: 700; color: #000; flex-shrink: 0; overflow: hidden;
+        }
+        .user-avatar img { width: 100%; height: 100%; object-fit: cover; }
+
+        /* ── MAIN ── */
+        .main-container { display: flex; height: calc(100vh - 54px); margin-top: 54px; }
+        .editor-area { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+        .tabs {
+            display: flex; background: var(--surface2);
+            border-bottom: 1px solid var(--border); min-height: 44px; overflow-x: auto; flex-shrink: 0;
+        }
+        .tab {
+            padding: 0 16px; display: flex; align-items: center; gap: 8px;
+            border-right: 1px solid var(--border); cursor: pointer; white-space: nowrap;
+            position: relative; font-size: 13px; color: var(--text-muted);
+        }
+        .tab.active { background: var(--surface); color: var(--primary); }
+        .tab.active::after { content:''; position:absolute; bottom:0; left:0; right:0; height:2px; background:var(--primary); }
+        .tab-close { width:17px; height:17px; display:flex; align-items:center; justify-content:center; border-radius:50%; font-size:11px; }
+        .tab-close:hover { background:#ff4444; color:white; }
+        .editor-wrapper { flex:1; position:relative; min-height:0; }
+        #code-editor {
+            position:absolute; inset:0; width:100%; height:100%;
+            background:#1e1e2e; color:#cdd6f4;
+            font-family:'Courier New','Consolas',monospace; font-size:15px; line-height:1.75;
+            padding:28px 36px; border:none; outline:none; resize:none; overflow:auto;
+            direction:ltr; box-shadow:inset 0 0 60px rgba(0,0,0,0.4);
+        }
+        [data-theme="light"] #code-editor { background:#f8f9fc; color:#1a1a2e; }
+        .status-bar {
+            height:30px; background:var(--surface2); border-top:1px solid var(--border);
+            display:flex; align-items:center; font-size:12px; color:var(--text-muted);
+            padding:0 16px; gap:20px; flex-shrink:0;
+        }
+
+        /* ── FILES SIDEBAR ── */
+        .files-sidebar {
+            position:fixed; top:54px; right:-320px; width:320px;
+            height:calc(100vh - 54px); background:var(--surface);
+            border-left:1px solid var(--border); box-shadow:-12px 0 36px rgba(0,0,0,0.6);
+            transition:right 0.4s cubic-bezier(0.32,0.72,0,1);
+            display:flex; flex-direction:column; z-index:400;
+        }
+        .files-sidebar.open { right:0; }
+        .files-header { padding:13px 16px; border-bottom:1px solid var(--border); font-weight:600; color:var(--primary); display:flex; justify-content:space-between; align-items:center; font-size:14px; flex-shrink:0; }
+        .search-box { margin:10px 12px; position:relative; flex-shrink:0; }
+        .search-box input { width:100%; padding:9px 16px 9px 34px; background:var(--surface2); border:1px solid var(--border); border-radius:9px; color:var(--text); outline:none; font-size:13px; }
+        .sidebar-content { flex:1; overflow-y:auto; }
+        .section-header { padding:11px 16px 7px; font-size:11px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.7px; display:flex; justify-content:space-between; align-items:center; }
+        .file-item { padding:10px 16px; display:flex; align-items:center; gap:9px; cursor:pointer; transition:all 0.15s; color:var(--text-muted); font-size:13px; }
+        .file-item:hover, .file-item.active { background:rgba(0,212,255,0.12); color:var(--primary); }
+        .file-item .file-actions { margin-right:auto; display:none; gap:3px; }
+        .file-item:hover .file-actions { display:flex; }
+        .file-action-btn { background:none; border:none; color:var(--text-muted); cursor:pointer; padding:3px 5px; border-radius:4px; font-size:11px; }
+        .file-action-btn:hover { color:var(--primary); background:rgba(0,212,255,0.12); }
+        .project-item { margin:3px 6px; }
+        .project-header { padding:9px 10px; display:flex; align-items:center; gap:7px; cursor:pointer; border-radius:8px; transition:background 0.15s; font-size:13px; font-weight:500; }
+        .project-header:hover { background:var(--surface2); }
+        .project-name { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+        .project-actions { display:none; gap:2px; flex-shrink:0; }
+        .project-header:hover .project-actions { display:flex; }
+        .project-actions button { background:none; border:none; color:var(--text-muted); cursor:pointer; padding:3px 5px; border-radius:4px; font-size:11px; }
+        .project-actions button:hover { color:var(--primary); }
+        .project-files { padding-right:18px; border-right:2px solid var(--border); margin-right:18px; }
+        .add-file-btn { padding:6px 12px; font-size:12px; color:var(--text-muted); cursor:pointer; display:flex; align-items:center; gap:6px; border-radius:6px; margin:2px; }
+        .add-file-btn:hover { background:var(--surface2); color:var(--primary); }
+
+        /* ── PREVIEW PANEL (LEFT) ── */
+        .preview-panel {
+            position:fixed; top:54px; bottom:0; left:-62%; width:60%;
+            background:var(--surface); border-right:1px solid var(--border);
+            box-shadow:14px 0 40px rgba(0,0,0,0.6);
+            transition:left 0.5s cubic-bezier(0.32,0.72,0,1);
+            display:flex; flex-direction:column; z-index:100;
+        }
+        .preview-panel.active { left:0; }
+        .preview-header { padding:11px 18px; background:var(--surface2); border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; font-size:14px; flex-shrink:0; }
+        .preview-frame { flex:1; margin:12px; border-radius:10px; overflow:hidden; background:white; box-shadow:0 8px 24px rgba(0,0,0,0.3); }
+        #preview { width:100%; height:100%; border:none; }
+
+        /* ── AI PANEL (RIGHT) ── */
+        .ai-panel {
+            position:fixed; top:54px; bottom:0; right:-480px; width:480px;
+            background:var(--surface); border-left:1px solid var(--border);
+            box-shadow:-12px 0 36px rgba(0,0,0,0.6);
+            transition:right 0.5s cubic-bezier(0.32,0.72,0,1);
+            display:flex; flex-direction:column; z-index:200;
+        }
+        .ai-panel.active { right:0; }
+        .ai-header { padding:14px 18px; background:var(--surface2); border-bottom:1px solid var(--border); display:flex; align-items:center; gap:10px; flex-shrink:0; }
+        .ai-messages { flex:1; padding:14px; overflow-y:auto; background:var(--bg); display:flex; flex-direction:column; gap:11px; }
+        .ai-message { padding:13px 16px; border-radius:15px; max-width:85%; font-size:14px; }
+        .ai-user { align-self:flex-end; background:var(--primary); color:#000; }
+        .ai-bot  { align-self:flex-start; background:var(--surface2); }
+        .ai-input-area { padding:14px; background:var(--surface2); flex-shrink:0; }
+        .ai-input-area input { width:100%; padding:12px 16px; border:1px solid var(--border); background:var(--surface); border-radius:9999px; color:var(--text); outline:none; font-size:14px; }
+
+        /* ── HAMBURGER MENU ── */
+        .sidebar-menu {
+            position:fixed; top:0; right:-440px; width:440px; height:100vh;
+            background:var(--surface); box-shadow:-18px 0 50px rgba(0,0,0,0.7);
+            z-index:9999; transition:right 0.5s cubic-bezier(0.32,0.72,0,1); overflow-y:auto;
+        }
+        .sidebar-menu.open { right:0; }
+        .menu-header { padding:22px; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; }
+        .menu-item { padding:15px 22px; display:flex; align-items:center; gap:13px; cursor:pointer; border-bottom:1px solid var(--border); font-size:15px; }
+        .menu-item:hover { background:var(--surface2); }
+
+        /* ── AUTH MODAL ── */
+        .modal {
+            position:fixed; inset:0; background:rgba(0,0,0,0.82);
+            display:none; align-items:center; justify-content:center; z-index:12000;
+        }
+        .modal-content {
+            background:var(--surface); padding:28px; border-radius:18px;
+            width:100%; max-width:420px; max-height:92vh; overflow-y:auto;
+        }
+        .modal-input {
+            width:100%; padding:12px 14px; border-radius:9px; border:1px solid var(--border);
+            background:var(--surface2); color:var(--text); margin-bottom:12px; font-size:14px; outline:none;
+            transition:border-color 0.2s;
+        }
+        .modal-input:focus { border-color:var(--primary); }
+        .modal-actions { display:flex; gap:9px; justify-content:flex-end; flex-wrap:wrap; }
+
+        /* Auth-specific */
+        .auth-tabs { display:flex; border-bottom:2px solid var(--border); margin-bottom:22px; }
+        .auth-tab {
+            flex:1; padding:11px 6px; background:none; border:none; color:var(--text-muted);
+            cursor:pointer; font-size:15px; font-weight:500;
+            border-bottom:3px solid transparent; margin-bottom:-2px; transition:all 0.2s;
+        }
+        .auth-tab.active { color:var(--primary); border-bottom-color:var(--primary); }
+        .auth-tab:hover:not(.active) { color:var(--text); }
+        .auth-title {
+            text-align:center; margin-bottom:20px;
+        }
+        .auth-title .auth-icon {
+            width:64px; height:64px; border-radius:50%;
+            background:linear-gradient(135deg,var(--primary),#7b5eff);
+            display:flex; align-items:center; justify-content:center;
+            font-size:28px; margin:0 auto 14px; color:#000;
+        }
+        .auth-title h2 { font-size:20px; margin-bottom:4px; }
+        .auth-title p  { font-size:13px; color:var(--text-muted); }
+        .auth-divider {
+            display:flex; align-items:center; gap:12px; margin:14px 0; color:var(--text-muted); font-size:12px;
+        }
+        .auth-divider::before, .auth-divider::after { content:''; flex:1; height:1px; background:var(--border); }
+        .google-btn {
+            width:100%; padding:11px; border-radius:9px; border:1px solid var(--border);
+            background:white; color:#333; cursor:pointer; font-size:14px; font-weight:500;
+            display:flex; align-items:center; justify-content:center; gap:10px; transition:all 0.2s;
+        }
+        .google-btn:hover { box-shadow:0 2px 12px rgba(0,0,0,0.18); }
+        .auth-error {
+            background:rgba(255,68,68,0.12); border:1px solid rgba(255,68,68,0.3);
+            border-radius:9px; padding:10px 14px; font-size:13px; color:#ff6b6b;
+            margin-bottom:12px; display:none;
+        }
+        .auth-dismiss {
+            display:block; text-align:center; margin-top:16px;
+            color:var(--text-muted); cursor:pointer; font-size:13px; background:none; border:none; width:100%;
+        }
+        .auth-dismiss:hover { color:var(--text); }
+        .auth-later-hint {
+            font-size:11px; color:#666; text-align:center; margin-top:8px; line-height:1.5;
+        }
+
+        /* User profile section in menu */
+        .menu-user-section {
+            padding:20px 22px; border-bottom:1px solid var(--border);
+            display:flex; align-items:center; gap:14px;
+        }
+        .menu-avatar-big {
+            width:52px; height:52px; border-radius:50%; background:linear-gradient(135deg,var(--primary),#7b5eff);
+            display:flex; align-items:center; justify-content:center; font-size:22px;
+            font-weight:700; color:#000; flex-shrink:0; overflow:hidden;
+        }
+        .menu-avatar-big img { width:100%; height:100%; object-fit:cover; }
+
+        /* Share + cloud modals */
+        .share-file-item { display:flex; align-items:center; gap:9px; padding:9px 10px; border-radius:8px; cursor:pointer; font-size:13px; }
+        .share-file-item:hover { background:var(--surface2); }
+        .share-file-item label { display:flex; align-items:center; gap:8px; flex:1; cursor:pointer; }
+        .cloud-link-box {
+            background:rgba(0,212,255,0.08); border:1px solid rgba(0,212,255,0.3);
+            border-radius:10px; padding:12px 14px; margin-bottom:14px;
+            font-size:12px; word-break:break-all; color:var(--primary); display:none;
+        }
+        .cloud-link-box.show { display:block; }
+        .cloud-ws-item { padding:12px 14px; border-radius:9px; margin-bottom:6px; background:var(--surface2); display:flex; align-items:center; gap:10px; }
+
+        /* ── TOAST ── */
+        .toast {
+            position:fixed; bottom:22px; left:50%; transform:translateX(-50%);
+            background:var(--surface2); padding:12px 20px; border-radius:12px;
+            box-shadow:0 10px 28px rgba(0,0,0,0.4); display:none; align-items:center;
+            gap:9px; z-index:13000; font-size:14px; white-space:nowrap;
+        }
+
+        /* ── DROP ZONE ── */
+        .drop-zone {
+            position:absolute; inset:0; background:rgba(10,10,15,0.97);
+            display:none; flex-direction:column; align-items:center; justify-content:center;
+            z-index:500; border:4px dashed var(--primary); color:var(--primary); gap:18px; font-size:19px;
+        }
+
+        /* Loading spinner overlay */
+        .auth-spinner { display:none; text-align:center; padding:8px; color:var(--primary); }
+        .auth-spinner.show { display:block; }
+    </style>
+</head>
+<body data-theme="dark">
+
+<!-- ═══ HEADER ═══ -->
+<header class="header">
+    <div class="header-left">
+        <div class="hamburger-btn" onclick="toggleSidebarMenu()"><i class="fas fa-bars"></i></div>
+        <div class="logo"><i class="fas fa-cube"></i><span>CodeSphere</span></div>
+    </div>
+    <div class="nav-actions">
+        <button onclick="toggleFilesSidebar()" class="btn-icon" title="קבצים ופרויקטים" style="color:#f59e0b;">
+            <i class="fas fa-folder-open"></i>
+        </button>
+        <button onclick="newFile()" class="btn"><i class="fas fa-plus"></i><span>קובץ חדש</span></button>
+        <button onclick="triggerFileUpload()" class="btn"><i class="fas fa-upload"></i><span>העלה</span></button>
+        <button onclick="quickSave()" class="btn-icon" title="שמור מהיר (Ctrl+Q)" style="background:#22c55e;color:#000;">
+            <i class="fas fa-save"></i>
+        </button>
+        <button onclick="saveAsFile()" class="btn btn-primary" title="שמור בשם (Ctrl+S)">
+            <i class="fas fa-file-arrow-down"></i><span>שמור בשם</span>
+        </button>
+        <button onclick="saveToFirebase()" class="btn" style="background:#ff9800;color:#000;" title="שמור בענן">
+            <span id="cloud-status-dot"></span>
+            <i class="fas fa-cloud-arrow-up"></i><span>לענן</span>
+        </button>
+        <button onclick="createPublicLink()" class="btn" style="background:#7b5eff;color:white;">
+            <i class="fas fa-share-alt"></i><span>שתף</span>
+        </button>
+        <button onclick="togglePreview()" class="btn" id="preview-btn">
+            <i class="fas fa-eye"></i><span>תצוגה מקדימה</span>
+        </button>
+        <button onclick="toggleAIPanel()" class="btn" style="background:#10b981;color:white;">
+            <i class="fas fa-robot"></i><span>AI בונה אתרים</span>
+        </button>
+        <!-- User chip (shown when logged in) -->
+        <div class="user-chip" id="user-chip" style="display:none;" onclick="toggleSidebarMenu()">
+            <div class="user-avatar" id="header-avatar">?</div>
+            <span id="header-username" style="max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+        </div>
+        <!-- Login button (shown when logged out) -->
+        <button onclick="showAuthModal()" class="btn" id="login-header-btn" style="display:none;border:1px solid var(--border);">
+            <i class="fas fa-user"></i><span>כניסה</span>
+        </button>
+    </div>
+</header>
+
+<!-- ═══ MAIN ═══ -->
+<div class="main-container">
+    <div class="editor-area">
+        <div class="tabs" id="tabs-container"></div>
+        <div class="editor-wrapper">
+            <textarea id="code-editor" spellcheck="false" placeholder="כתוב את הקוד כאן..."></textarea>
+            <div class="drop-zone" id="drop-zone">
+                <i class="fas fa-cloud-upload-alt" style="font-size:68px;opacity:0.6;"></i>
+                <div>גרור קובץ לכאן</div>
+            </div>
+        </div>
+        <div class="status-bar">
+            <div>שורות: <span id="line-count">1</span></div>
+            <div>תווים: <span id="char-count">0</span></div>
+            <div id="current-file-name">index.html</div>
+            <div style="margin-right:auto;color:var(--primary);cursor:pointer;" onclick="formatCode()">
+                <i class="fas fa-magic"></i> יפה
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ FILES SIDEBAR ═══ -->
+<div class="files-sidebar" id="files-sidebar">
+    <div class="files-header">
+        <span><i class="fas fa-folder-open"></i> קבצים ופרויקטים</span>
+        <button onclick="toggleFilesSidebar()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:17px;">✕</button>
+    </div>
+    <div class="search-box">
+        <i class="fas fa-search" style="position:absolute;top:11px;right:13px;color:#777;font-size:11px;"></i>
+        <input type="text" id="search-input" placeholder="חיפוש..." onkeyup="renderProjectsAndFiles()">
+    </div>
+    <div class="sidebar-content">
+        <div class="section-header">
+            <span>פרויקטים</span>
+            <button onclick="newProject()" class="btn-icon" style="width:22px;height:22px;font-size:11px;" title="פרויקט חדש"><i class="fas fa-plus"></i></button>
+        </div>
+        <div id="projects-list"></div>
+        <div class="section-header" style="margin-top:6px;"><span>קבצים ללא פרויקט</span></div>
+        <div id="files-list"></div>
+    </div>
+    <div onclick="showCloudFiles()" style="padding:12px 16px;text-align:center;color:var(--primary);border-top:1px solid var(--border);cursor:pointer;font-size:13px;flex-shrink:0;">
+        <i class="fas fa-cloud"></i> טעון מהענן
+    </div>
+</div>
+
+<!-- ═══ PREVIEW (LEFT) ═══ -->
+<div class="preview-panel" id="preview-panel">
+    <div class="preview-header">
+        <div><i class="fas fa-eye" style="color:var(--primary);"></i> תצוגה מקדימה</div>
+        <div onclick="togglePreview()" style="cursor:pointer;font-size:20px;color:#ff5555;">✕</div>
+    </div>
+    <div class="preview-frame"><iframe id="preview"></iframe></div>
+</div>
+
+<!-- ═══ AI PANEL (RIGHT) ═══ -->
+<div class="ai-panel" id="ai-panel">
+    <div class="ai-header">
+        <i class="fas fa-robot" style="color:#10b981;"></i>
+        <span style="font-weight:600;">AI בונה אתרים</span>
+        <div onclick="toggleAIPanel()" style="margin-right:auto;cursor:pointer;font-size:22px;color:#888;">✕</div>
+    </div>
+    <div class="ai-messages" id="ai-messages">
+        <div class="ai-message ai-bot">שלום! מה תרצה שאשנה בקוד?</div>
+    </div>
+    <div class="ai-input-area">
+        <input type="text" id="ai-input" placeholder="לדוגמה: הוסף כפתור כחול..."
+               onkeypress="if(event.key==='Enter') handleAIRequest()">
+    </div>
+</div>
+
+<!-- ═══ HAMBURGER MENU ═══ -->
+<div class="sidebar-menu" id="sidebar-menu">
+    <!-- User section -->
+    <div class="menu-user-section">
+        <div class="menu-avatar-big" id="menu-avatar-big">
+            <i class="fas fa-user"></i>
+        </div>
+        <div style="flex:1;min-width:0;">
+            <div id="menu-user-name" style="font-weight:600;font-size:16px;">אורח</div>
+            <div id="menu-user-email" style="font-size:12px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">לחץ להתחבר / להירשם</div>
+        </div>
+        <i onclick="toggleSidebarMenu()" class="fas fa-times" style="font-size:22px;cursor:pointer;color:var(--text-muted);flex-shrink:0;"></i>
+    </div>
+    <!-- Auth button -->
+    <div class="menu-item" id="menu-auth-item" onclick="handleMenuAuthClick()">
+        <i class="fas fa-right-to-bracket" id="menu-auth-icon" style="color:var(--primary);"></i>
+        <span id="menu-auth-text">התחבר / הירשם</span>
+    </div>
+    <div class="menu-item" onclick="toggleTheme();toggleSidebarMenu()">
+        <i class="fas fa-circle-half-stroke"></i><span>מצב בהיר / כהה</span>
+    </div>
+    <div class="menu-item" onclick="toggleFilesSidebar();toggleSidebarMenu()">
+        <i class="fas fa-folder-open" style="color:#f59e0b;"></i><span>ניהול פרויקטים וקבצים</span>
+    </div>
+    <div class="menu-item" onclick="requireAuthAction(openShareProjectModal);toggleSidebarMenu()">
+        <i class="fas fa-share-alt" style="color:#7b5eff;"></i><span>שתף פרויקט בענן</span>
+    </div>
+    <div class="menu-item" onclick="requireAuthAction(createPublicLink);toggleSidebarMenu()">
+        <i class="fas fa-link" style="color:var(--primary);"></i><span>שתף קובץ נוכחי</span>
+    </div>
+    <div class="menu-item" onclick="requireAuthAction(saveToFirebase);toggleSidebarMenu()">
+        <i class="fas fa-cloud-arrow-up" style="color:#ff9800;"></i><span>שמור כל הפרויקטים בענן</span>
+    </div>
+    <div class="menu-item" onclick="requireAuthAction(showCloudFiles);toggleSidebarMenu()">
+        <i class="fas fa-cloud-arrow-down" style="color:#22c55e;"></i><span>טעון פרויקטים מהענן</span>
+    </div>
+    <div class="menu-item" onclick="clearAllFiles();toggleSidebarMenu()">
+        <i class="fas fa-trash-alt" style="color:#ff5555;"></i><span>נקה את כל הקבצים</span>
+    </div>
+</div>
+
+<!-- ═══ AUTH MODAL ═══ -->
+<div class="modal" id="auth-modal">
+    <div class="modal-content" style="max-width:400px;">
+        <div class="auth-title">
+            <div class="auth-icon"><i class="fas fa-cube"></i></div>
+            <h2>CodeSphere</h2>
+            <p id="auth-subtitle">כניסה לחשבונך</p>
+        </div>
+
+        <!-- Tabs -->
+        <div class="auth-tabs">
+            <button class="auth-tab active" id="tab-login"    onclick="switchAuthTab('login')">התחבר</button>
+            <button class="auth-tab"        id="tab-register" onclick="switchAuthTab('register')">הירשם</button>
+        </div>
+
+        <!-- Error -->
+        <div class="auth-error" id="auth-error"></div>
+
+        <!-- Spinner -->
+        <div class="auth-spinner" id="auth-spinner"><i class="fas fa-circle-notch fa-spin" style="font-size:24px;"></i></div>
+
+        <!-- Form -->
+        <div id="auth-form-body">
+            <div id="auth-name-row" style="display:none;">
+                <input type="text" id="auth-name" class="modal-input" placeholder="שם תצוגה">
+            </div>
+            <input type="email" id="auth-email" class="modal-input" placeholder="כתובת אימייל"
+                   onkeypress="if(event.key==='Enter')document.getElementById('auth-password').focus()">
+            <input type="password" id="auth-password" class="modal-input" placeholder="סיסמה (מינימום 6 תווים)"
+                   onkeypress="if(event.key==='Enter')submitAuth()">
+
+            <button onclick="submitAuth()" class="btn btn-primary" id="auth-submit-btn"
+                    style="width:100%;justify-content:center;padding:13px;font-size:15px;border-radius:10px;margin-bottom:4px;">
+                <i class="fas fa-right-to-bracket"></i>
+                <span id="auth-btn-text">התחבר</span>
+            </button>
+
+            <div class="auth-divider">או</div>
+
+            <button class="google-btn" onclick="signInWithGoogle()">
+                <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.29-8.16 2.29-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+                המשך עם Google
+            </button>
+        </div>
+
+        <!-- Dismiss -->
+        <button class="auth-dismiss" onclick="dismissAuthModal()">
+            <i class="fas fa-clock"></i> לא עכשיו
+        </button>
+        <p class="auth-later-hint">ניתן להמשיך בעריכה ללא חשבון.<br>חשבון נדרש לשמירה ושיתוף בענן.</p>
+    </div>
+</div>
+
+<!-- ═══ MODAL: Save As ═══ -->
+<div class="modal" id="save-modal">
+    <div class="modal-content">
+        <h2 style="color:var(--primary);margin-bottom:14px;"><i class="fas fa-save"></i> שמור בשם</h2>
+        <input type="text" id="filename-input" value="index.html" class="modal-input">
+        <div class="modal-actions">
+            <button onclick="closeSaveModal()" class="btn" style="background:#444;color:white;">ביטול</button>
+            <button onclick="confirmSaveAs()" class="btn btn-primary"><i class="fas fa-download"></i> שמור למחשב</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ MODAL: Add File to Project ═══ -->
+<div class="modal" id="add-to-project-modal">
+    <div class="modal-content">
+        <h2 style="color:var(--primary);margin-bottom:14px;"><i class="fas fa-folder-plus"></i> הוסף לפרויקט</h2>
+        <div id="add-to-project-list" style="max-height:220px;overflow-y:auto;margin-bottom:14px;"></div>
+        <div class="modal-actions">
+            <button onclick="closeAddToProjectModal()" class="btn" style="background:#444;color:white;">ביטול</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ MODAL: Share Project ═══ -->
+<div class="modal" id="share-project-modal">
+    <div class="modal-content" style="max-width:500px;">
+        <h2 style="color:var(--primary);margin-bottom:14px;"><i class="fas fa-share-alt"></i> שתף פרויקט</h2>
+        <div style="margin-bottom:12px;">
+            <label style="font-size:12px;color:var(--text-muted);">בחר פרויקט:</label>
+            <select id="share-project-selector" onchange="loadShareProjectFiles()"
+                    style="width:100%;padding:9px;border-radius:8px;border:1px solid var(--border);background:var(--surface2);color:var(--text);margin-top:5px;font-size:13px;"></select>
+        </div>
+        <div id="share-project-files" style="max-height:170px;overflow-y:auto;margin-bottom:10px;border:1px solid var(--border);border-radius:9px;padding:4px;"></div>
+        <div class="cloud-link-box" id="share-result-link">
+            <div style="margin-bottom:8px;"><i class="fas fa-check-circle"></i> הקישור מוכן!</div>
+            <span id="share-result-url"></span>
+            <button onclick="copyShareLink()" class="btn" style="background:var(--primary);color:#000;padding:7px 12px;margin-top:10px;width:100%;justify-content:center;">
+                <i class="fas fa-copy"></i> העתק קישור
+            </button>
+        </div>
+        <div class="modal-actions">
+            <button onclick="closeShareProjectModal()" class="btn" style="background:#444;color:white;">סגור</button>
+            <button onclick="downloadSelectedFiles()" class="btn"><i class="fas fa-download"></i> הורד נבחרים</button>
+            <button onclick="shareProjectToCloud()" class="btn" style="background:#7b5eff;color:white;">
+                <i class="fas fa-cloud-arrow-up"></i> שתף בענן
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ MODAL: Cloud Files ═══ -->
+<div class="modal" id="cloud-modal">
+    <div class="modal-content" style="max-width:480px;">
+        <h2 style="color:var(--primary);margin-bottom:14px;"><i class="fas fa-cloud"></i> פרויקטים בענן</h2>
+        <div id="cloud-files-list" style="max-height:300px;overflow-y:auto;margin-bottom:14px;"></div>
+        <div class="modal-actions">
+            <button onclick="closeCloudModal()" class="btn" style="background:#444;color:white;">סגור</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ MODAL: AI Confirm ═══ -->
+<div class="modal" id="confirm-modal">
+    <div class="modal-content">
+        <h2 style="color:var(--primary);margin-bottom:13px;">אשר שינוי AI</h2>
+        <div id="ai-suggestion-text" style="margin-bottom:16px;color:var(--text-muted);font-size:14px;line-height:1.6;"></div>
+        <div class="modal-actions">
+            <button onclick="cancelAIChange()" class="btn" style="background:#444;color:white;">ביטול</button>
+            <button onclick="approveAIChange()" class="btn btn-primary">אשר שינוי</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ TOAST ═══ -->
+<div class="toast" id="toast">
+    <i class="fas fa-check-circle" style="color:#22c55e;" id="toast-icon"></i>
+    <span id="toast-text"></span>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════
+   STATE
+═══════════════════════════════════════════════ */
+let files = [], projects = [];
+let currentFileIndex = -1;
+let isPreviewOpen = false, isAIPanelOpen = false, isFilesSidebarOpen = false;
+let pendingAIChange = null;
+let _fb = null;        // Firebase helpers
+let _auth = null;      // Firebase auth instance
+let currentUser = null;
+let _shareUrl = '';
+let _authMode = 'login'; // 'login' | 'register'
+
+const editor        = document.getElementById('code-editor');
+const preview       = document.getElementById('preview');
+const tabsContainer = document.getElementById('tabs-container');
+const toast         = document.getElementById('toast');
+const toastText     = document.getElementById('toast-text');
+const toastIcon     = document.getElementById('toast-icon');
+const dropZone      = document.getElementById('drop-zone');
+const aiMessages    = document.getElementById('ai-messages');
+
+const FIREBASE_CONFIG = {
+    apiKey:            "AIzaSyCRT2Bgu1V4RAjhR5CiTSjAgkKJQmXh2vc",
+    authDomain:        "code-editor-4c979.firebaseapp.com",
+    projectId:         "code-editor-4c979",
+    storageBucket:     "code-editor-4c979.firebasestorage.app",
+    messagingSenderId: "309267976559",
+    appId:             "1:309267976559:web:5af8aa2e56146cc276d89a",
+    measurementId:     "G-CG77FR4ZMS"
+};
+
+function getBaseUrl() {
+    const h = location.hostname;
+    if (h.includes('web.app') || h.includes('firebaseapp.com')) return `https://${h}/`;
+    return location.href.replace(/[^/]*$/, '');
+}
+
+/* ═══════════════════════════════════════════════
+   FIREBASE INIT (dynamic import)
+═══════════════════════════════════════════════ */
+(async function initFirebase() {
+    try {
+        const dot = document.getElementById('cloud-status-dot');
+        dot.className = 'saving';
+
+        const [
+            { initializeApp },
+            { getFirestore, collection, doc, setDoc, getDoc, addDoc, serverTimestamp },
+            { getAuth, onAuthStateChanged,
+              signInWithEmailAndPassword, createUserWithEmailAndPassword,
+              updateProfile, signOut, GoogleAuthProvider, signInWithPopup }
+        ] = await Promise.all([
+            import('https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js'),
+            import('https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js'),
+            import('https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js')
+        ]);
+
+        const app = initializeApp(FIREBASE_CONFIG);
+        const db  = getFirestore(app);
+        _auth     = getAuth(app);
+
+        /* ── Firestore helpers ── */
+        _fb = {
+            async saveWorkspace(uid, data) {
+                await setDoc(doc(db, 'codesphere_workspaces', uid), {
+                    files:    data.files.map(f => ({ id: f.id, name: f.name, content: f.content })),
+                    projects: data.projects,
+                    updatedAt: serverTimestamp()
+                });
+            },
+            async loadWorkspace(uid) {
+                const snap = await getDoc(doc(db, 'codesphere_workspaces', uid));
+                return snap.exists() ? snap.data() : null;
+            },
+            /* Create new share OR update existing one — returns the permanent cloudId */
+            async upsertShare(cloudId, shareData) {
+                if (cloudId) {
+                    // Update existing document (permanent link stays the same)
+                    const ref = doc(db, 'codesphere_shares', cloudId);
+                    await setDoc(ref, { ...shareData, updatedAt: serverTimestamp() }, { merge: true });
+                    return cloudId;
+                } else {
+                    // First time — create new document
+                    const ref = await addDoc(collection(db, 'codesphere_shares'), {
+                        ...shareData,
+                        createdAt: serverTimestamp(),
+                        updatedAt: serverTimestamp()
+                    });
+                    return ref.id;
+                }
+            }
+        };
+
+        /* ── Auth helpers ── */
+        _auth._helpers = {
+            signInWithEmailAndPassword,
+            createUserWithEmailAndPassword,
+            updateProfile,
+            signOut,
+            signInWithPopup,
+            GoogleAuthProvider
+        };
+
+        /* ── Auth state listener ── */
+        onAuthStateChanged(_auth, user => {
+            currentUser = user;
+            updateAuthUI(user);
+        });
+
+        dot.className = 'ok';
+
+    } catch(e) {
+        console.warn('Firebase init failed:', e.message);
+        document.getElementById('cloud-status-dot').className = 'error';
+    }
+})();
+
+/* ═══════════════════════════════════════════════
+   AUTH UI
+═══════════════════════════════════════════════ */
+function updateAuthUI(user) {
+    const dot         = document.getElementById('cloud-status-dot');
+    const userChip    = document.getElementById('user-chip');
+    const loginBtn    = document.getElementById('login-header-btn');
+    const menuName    = document.getElementById('menu-user-name');
+    const menuEmail   = document.getElementById('menu-user-email');
+    const menuAuthText= document.getElementById('menu-auth-text');
+    const menuAuthIcon= document.getElementById('menu-auth-icon');
+    const avatarBig   = document.getElementById('menu-avatar-big');
+    const headerAv    = document.getElementById('header-avatar');
+    const headerUN    = document.getElementById('header-username');
+
+    if (user) {
+        dot.className = 'ok';
+        const name    = user.displayName || user.email.split('@')[0];
+        const initial = name[0].toUpperCase();
+
+        // Header chip
+        userChip.style.display = 'flex';
+        loginBtn.style.display = 'none';
+        headerUN.textContent = name;
+        if (user.photoURL) {
+            headerAv.innerHTML = `<img src="${user.photoURL}" alt="">`;
+        } else {
+            headerAv.textContent = initial;
+        }
+
+        // Menu
+        menuName.textContent  = name;
+        menuEmail.textContent = user.email;
+        menuAuthText.textContent = 'התנתק';
+        menuAuthIcon.className = 'fas fa-right-from-bracket';
+        menuAuthIcon.style.color = '#ff5555';
+        if (user.photoURL) {
+            avatarBig.innerHTML = `<img src="${user.photoURL}" alt="">`;
+        } else {
+            avatarBig.innerHTML = '';
+            avatarBig.textContent = initial;
+        }
+
+        // Close auth modal if open
+        document.getElementById('auth-modal').style.display = 'none';
+        showToast(`ברוך הבא, ${name}!`, 'check-circle', '#22c55e');
+
+    } else {
+        dot.className = 'noauth';
+        userChip.style.display  = 'none';
+        loginBtn.style.display  = 'flex';
+
+        menuName.textContent  = 'אורח';
+        menuEmail.textContent = 'לחץ להתחבר / להירשם';
+        menuAuthText.textContent = 'התחבר / הירשם';
+        menuAuthIcon.className = 'fas fa-right-to-bracket';
+        menuAuthIcon.style.color = 'var(--primary)';
+        avatarBig.innerHTML = '<i class="fas fa-user"></i>';
+    }
+}
+
+/* Require auth before running a cloud action */
+function requireAuthAction(fn) {
+    if (currentUser) {
+        fn();
+    } else {
+        showAuthModal();
+        showToast("יש להתחבר כדי להשתמש בענן", "lock", "#ff9800");
+    }
+}
+
+function handleMenuAuthClick() {
+    if (currentUser) {
+        signOutUser();
+    } else {
+        toggleSidebarMenu();
+        showAuthModal();
+    }
+}
+
+/* ── Show / hide auth modal ── */
+function showAuthModal() {
+    setAuthTab('login');
+    clearAuthError();
+    document.getElementById('auth-form-body').style.display = 'block';
+    document.getElementById('auth-spinner').classList.remove('show');
+    document.getElementById('auth-modal').style.display = 'flex';
+    setTimeout(() => document.getElementById('auth-email').focus(), 100);
+}
+
+function dismissAuthModal() {
+    document.getElementById('auth-modal').style.display = 'none';
+    sessionStorage.setItem('auth_dismissed', '1');
+}
+
+function switchAuthTab(mode) {
+    setAuthTab(mode);
+}
+
+function setAuthTab(mode) {
+    _authMode = mode;
+    const isReg = mode === 'register';
+    document.getElementById('tab-login').classList.toggle('active', !isReg);
+    document.getElementById('tab-register').classList.toggle('active', isReg);
+    document.getElementById('auth-name-row').style.display = isReg ? 'block' : 'none';
+    document.getElementById('auth-btn-text').textContent   = isReg ? 'צור חשבון' : 'התחבר';
+    document.getElementById('auth-subtitle').textContent   = isReg ? 'צור חשבון חדש' : 'כניסה לחשבונך';
+    clearAuthError();
+}
+
+function clearAuthError() {
+    const el = document.getElementById('auth-error');
+    el.style.display = 'none';
+    el.textContent = '';
+}
+
+function showAuthError(msg) {
+    const el = document.getElementById('auth-error');
+    el.textContent = msg;
+    el.style.display = 'block';
+}
+
+function setAuthLoading(on) {
+    document.getElementById('auth-spinner').classList.toggle('show', on);
+    document.getElementById('auth-form-body').style.display = on ? 'none' : 'block';
+}
+
+/* ── Submit email/password ── */
+async function submitAuth() {
+    if (!_auth) { showToast("Firebase מתחבר...", "circle-notch", "#ff9800"); return; }
+    const email    = document.getElementById('auth-email').value.trim();
+    const password = document.getElementById('auth-password').value;
+    const name     = document.getElementById('auth-name').value.trim();
+
+    if (!email || !password) { showAuthError("אנא מלא אימייל וסיסמה"); return; }
+    if (password.length < 6) { showAuthError("הסיסמה חייבת להיות לפחות 6 תווים"); return; }
+
+    clearAuthError();
+    setAuthLoading(true);
+
+    try {
+        const h = _auth._helpers;
+        if (_authMode === 'register') {
+            const cred = await h.createUserWithEmailAndPassword(_auth, email, password);
+            if (name) await h.updateProfile(cred.user, { displayName: name });
+        } else {
+            await h.signInWithEmailAndPassword(_auth, email, password);
+        }
+        // onAuthStateChanged will fire and update UI
+    } catch(e) {
+        setAuthLoading(false);
+        const msgs = {
+            'auth/email-already-in-use':    'כתובת האימייל כבר בשימוש',
+            'auth/invalid-email':           'כתובת אימייל לא תקינה',
+            'auth/user-not-found':          'משתמש לא נמצא',
+            'auth/wrong-password':          'סיסמה שגויה',
+            'auth/too-many-requests':       'יותר מדי ניסיונות. נסה שוב מאוחר יותר',
+            'auth/weak-password':           'הסיסמה חלשה מדי',
+            'auth/invalid-credential':      'פרטי ההתחברות שגויים',
+        };
+        showAuthError(msgs[e.code] || e.message);
+    }
+}
+
+/* ── Google sign-in ── */
+async function signInWithGoogle() {
+    if (!_auth) { showToast("Firebase מתחבר...", "circle-notch", "#ff9800"); return; }
+    clearAuthError();
+    setAuthLoading(true);
+    try {
+        const h = _auth._helpers;
+        const provider = new h.GoogleAuthProvider();
+        await h.signInWithPopup(_auth, provider);
+    } catch(e) {
+        setAuthLoading(false);
+        if (e.code !== 'auth/popup-closed-by-user') showAuthError("שגיאה בהתחברות עם Google");
+    }
+}
+
+/* ── Sign out ── */
+async function signOutUser() {
+    if (!_auth) return;
+    if (!confirm("להתנתק?")) return;
+    await _auth._helpers.signOut(_auth);
+    showToast("התנתקת", "right-from-bracket", "#ff9800");
+}
+
+/* ═══════════════════════════════════════════════
+   UTILS
+═══════════════════════════════════════════════ */
+function showToast(msg, icon = 'check-circle', color = '#22c55e') {
+    toastIcon.className = `fas fa-${icon}`;
+    toastIcon.style.color = color;
+    toastText.textContent = msg;
+    toast.style.display = 'flex';
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => toast.style.display = 'none', 3000);
+}
+
+function updateStats() {
+    document.getElementById('line-count').textContent = editor.value.split('\n').length;
+    document.getElementById('char-count').textContent = editor.value.length;
+}
+
+function saveToStorage() {
+    try {
+        localStorage.setItem('codesphere_files_v4', JSON.stringify(files));
+        localStorage.setItem('codesphere_projects_v1', JSON.stringify(projects));
+    } catch(e) {}
+}
+
+function toggleTheme() {
+    document.body.dataset.theme = document.body.dataset.theme === 'light' ? 'dark' : 'light';
+}
+
+/* ═══════════════════════════════════════════════
+   CLOUD SAVE / LOAD (require auth)
+═══════════════════════════════════════════════ */
+async function saveToFirebase() {
+    if (!currentUser) { showAuthModal(); showToast("יש להתחבר לשמירה בענן", "lock", "#ff9800"); return; }
+    if (!_fb) { showToast("Firebase מתחבר...", "circle-notch", "#ff9800"); return; }
+    const dot = document.getElementById('cloud-status-dot');
+    dot.className = 'saving';
+    try {
+        showToast("שומר בענן...", "cloud-arrow-up", "#ff9800");
+        await _fb.saveWorkspace(currentUser.uid, { files, projects });
+        dot.className = 'ok';
+        showToast("נשמר בענן!", "cloud-arrow-up", "#22c55e");
+    } catch(e) {
+        dot.className = 'error';
+        showToast("שגיאה: " + e.message, "triangle-exclamation", "#ff5555");
+    }
+}
+
+async function showCloudFiles() {
+    if (!currentUser) { showAuthModal(); showToast("יש להתחבר לטעינה מהענן", "lock", "#ff9800"); return; }
+    if (!_fb) { showToast("Firebase מתחבר...", "circle-notch", "#ff9800"); return; }
+    try {
+        showToast("טוען מהענן...", "cloud-arrow-down", "#00d4ff");
+        const ws = await _fb.loadWorkspace(currentUser.uid);
+        if (!ws) { showToast("אין נתונים שמורים בענן", "info-circle", "#ff9800"); return; }
+        const updated = ws.updatedAt?.toDate?.()?.toLocaleString('he-IL') || '–';
+        document.getElementById('cloud-files-list').innerHTML = `
+            <div class="cloud-ws-item">
+                <i class="fas fa-database" style="color:#ff9800;font-size:22px;"></i>
+                <div style="flex:1;">
+                    <div style="font-weight:600;">הגיבוי שלי</div>
+                    <div style="font-size:12px;color:var(--text-muted);">${(ws.files||[]).length} קבצים · ${(ws.projects||[]).length} פרויקטים</div>
+                    <div style="font-size:11px;color:#666;">עודכן: ${updated}</div>
+                </div>
+                <button onclick="loadCloudWorkspace()" class="btn btn-primary" style="font-size:12px;padding:6px 12px;">
+                    <i class="fas fa-cloud-arrow-down"></i> טעון
+                </button>
+            </div>`;
+        document.getElementById('cloud-modal').style.display = 'flex';
+    } catch(e) {
+        showToast("שגיאה: " + e.message, "triangle-exclamation", "#ff5555");
+    }
+}
+
+async function loadCloudWorkspace() {
+    if (!_fb || !currentUser) return;
+    if (!confirm("לטעון מהענן? הנתונים הנוכחיים יוחלפו.")) return;
+    try {
+        const ws = await _fb.loadWorkspace(currentUser.uid);
+        if (!ws) return;
+        files    = (ws.files    || []).map(f => ({ id: f.id || Date.now(), name: f.name, content: f.content || '' }));
+        projects = ws.projects  || [];
+        currentFileIndex = files.length > 0 ? 0 : -1;
+        if (files.length > 0) { editor.value = files[0].content; document.getElementById('current-file-name').textContent = files[0].name; }
+        else editor.value = '';
+        renderProjectsAndFiles(); renderTabs(); updateStats(); saveToStorage();
+        closeCloudModal();
+        showToast("הפרויקטים נטענו מהענן!", "check-circle", "#22c55e");
+    } catch(e) { showToast("שגיאה: " + e.message, "triangle-exclamation", "#ff5555"); }
+}
+
+function closeCloudModal() { document.getElementById('cloud-modal').style.display = 'none'; }
+
+/* ═══════════════════════════════════════════════
+   SHARE (require auth)
+═══════════════════════════════════════════════ */
+async function createPublicLink() {
+    if (!currentUser) { showAuthModal(); showToast("יש להתחבר לשיתוף", "lock", "#ff9800"); return; }
+    if (currentFileIndex < 0) { showToast("אין קובץ פעיל", "exclamation-circle", "#ff9800"); return; }
+    if (!_fb) return;
+
+    const f = files[currentFileIndex];
+    f.content = editor.value; // ensure latest content
+
+    const isNew = !f.cloudId;
+    try {
+        showToast(isNew ? "יוצר קישור קבוע..." : "מעדכן קובץ בענן...", "cloud-arrow-up", "#7b5eff");
+
+        const cloudId = await _fb.upsertShare(f.cloudId || null, {
+            projectName: f.name,
+            files: [{ name: f.name, content: f.content }],
+            ownerUid: currentUser.uid,
+            type: 'file'
+        });
+
+        if (isNew) {
+            f.cloudId = cloudId; // store permanent link ID on the file
+            saveToStorage();
+            renderProjectsAndFiles(); // show cloud indicator in sidebar
+        }
+
+        const url = `${getBaseUrl()}viewer.html?id=${cloudId}`;
+        _shareUrl = url;
+        await navigator.clipboard.writeText(url);
+        showToast(isNew ? "קישור קבוע נוצר והועתק!" : "הקובץ עודכן בענן, קישור הועתק!", "check-circle", "#22c55e");
+    } catch(e) { showToast("שגיאה: " + e.message, "triangle-exclamation", "#ff5555"); }
+}
+
+async function shareProjectToCloud() {
+    if (!currentUser) { showAuthModal(); showToast("יש להתחבר לשיתוף", "lock", "#ff9800"); return; }
+    if (!_fb) return;
+    const sel = document.getElementById('share-project-selector');
+    const p   = projects.find(x => x.id === parseInt(sel.value));
+    if (!p) return;
+
+    // Always include all files in the project for a complete permanent link
+    const projectFiles = files.filter(f => p.fileIds.includes(f.id));
+    if (projectFiles.length === 0) { showToast("אין קבצים בפרויקט", "exclamation-circle", "#ff9800"); return; }
+
+    const isNew = !p.cloudId;
+    try {
+        showToast(isNew ? "יוצר קישור קבוע לפרויקט..." : "מעדכן פרויקט בענן...", "cloud-arrow-up", "#7b5eff");
+
+        const cloudId = await _fb.upsertShare(p.cloudId || null, {
+            projectName: p.name,
+            files: projectFiles.map(f => ({ name: f.name, content: f.content })),
+            ownerUid: currentUser.uid,
+            type: 'project'
+        });
+
+        if (isNew) {
+            p.cloudId = cloudId; // store permanent link ID on the project
+            saveToStorage();
+            renderProjectsAndFiles(); // show cloud indicator in sidebar
+        }
+
+        const url = `${getBaseUrl()}viewer.html?id=${cloudId}`;
+        _shareUrl = url;
+        document.getElementById('share-result-url').textContent = url;
+        document.getElementById('share-result-link').classList.add('show');
+        // Update button text to "עדכן בענן" since link now exists
+        const btn = document.getElementById('share-to-cloud-btn');
+        if (btn) btn.innerHTML = '<i class="fas fa-cloud-arrow-up"></i> עדכן בענן';
+        showToast(isNew ? "קישור קבוע לפרויקט נוצר!" : "הפרויקט עודכן בענן!", "check-circle", "#22c55e");
+    } catch(e) { showToast("שגיאה: " + e.message, "triangle-exclamation", "#ff5555"); }
+}
+
+function copyShareLink() {
+    if (_shareUrl) navigator.clipboard.writeText(_shareUrl).then(() => showToast("קישור הועתק!", "copy", "#22c55e"));
+}
+
+/* ═══════════════════════════════════════════════
+   PREVIEW
+═══════════════════════════════════════════════ */
+function livePreview() {
+    if (currentFileIndex < 0 || !isPreviewOpen) return;
+    const blob = new Blob([editor.value], { type: 'text/html' });
+    preview.src = URL.createObjectURL(blob);
+}
+
+function togglePreview() {
+    isPreviewOpen = !isPreviewOpen;
+    const panel = document.getElementById('preview-panel');
+    const btn   = document.getElementById('preview-btn');
+    panel.classList.toggle('active', isPreviewOpen);
+    btn.style.background = isPreviewOpen ? 'var(--primary)' : '';
+    btn.style.color = isPreviewOpen ? '#000' : '';
+    if (isPreviewOpen) livePreview();
+}
+
+/* ═══════════════════════════════════════════════
+   AI PANEL
+═══════════════════════════════════════════════ */
+function toggleAIPanel() {
+    isAIPanelOpen = !isAIPanelOpen;
+    document.getElementById('ai-panel').classList.toggle('active', isAIPanelOpen);
+}
+
+function handleAIRequest() {
+    const input = document.getElementById('ai-input');
+    const prompt = input.value.trim();
+    if (!prompt || currentFileIndex < 0) return;
+    const userMsg = document.createElement('div');
+    userMsg.className = 'ai-message ai-user';
+    userMsg.textContent = prompt;
+    aiMessages.appendChild(userMsg);
+    aiMessages.scrollTop = aiMessages.scrollHeight;
+    input.value = '';
+    setTimeout(() => {
+        const botMsg = document.createElement('div');
+        botMsg.className = 'ai-message ai-bot';
+        botMsg.innerHTML = `הבנתי. האם לאשר את השינוי?<br><strong>${prompt}</strong>`;
+        aiMessages.appendChild(botMsg);
+        aiMessages.scrollTop = aiMessages.scrollHeight;
+        pendingAIChange = { prompt, newCode: editor.value + `\n\n<!-- AI: ${prompt} -->` };
+        document.getElementById('ai-suggestion-text').innerHTML = `<strong>בקשה:</strong><br>${prompt}`;
+        document.getElementById('confirm-modal').style.display = 'flex';
+    }, 700);
+}
+
+function approveAIChange() {
+    if (pendingAIChange && currentFileIndex >= 0) {
+        editor.value = pendingAIChange.newCode;
+        files[currentFileIndex].content = editor.value;
+        livePreview(); showToast("הקוד עודכן");
+    }
+    document.getElementById('confirm-modal').style.display = 'none';
+    pendingAIChange = null;
+}
+
+function cancelAIChange() {
+    document.getElementById('confirm-modal').style.display = 'none';
+    pendingAIChange = null;
+}
+
+/* ═══════════════════════════════════════════════
+   FILES SIDEBAR
+═══════════════════════════════════════════════ */
+function toggleFilesSidebar() {
+    isFilesSidebarOpen = !isFilesSidebarOpen;
+    document.getElementById('files-sidebar').classList.toggle('open', isFilesSidebarOpen);
+}
+
+function renderProjectsAndFiles() {
+    const searchTerm    = (document.getElementById('search-input').value || '').toLowerCase();
+    const projectsList  = document.getElementById('projects-list');
+    const filesList     = document.getElementById('files-list');
+    const inProject     = new Set();
+    projects.forEach(p => p.fileIds.forEach(id => inProject.add(id)));
+
+    projectsList.innerHTML = projects.length === 0
+        ? `<div style="padding:8px 16px;color:#666;font-size:12px;">לחץ + להוסיף פרויקט</div>`
+        : projects.map(project => {
+            const pFiles = files.filter(f => project.fileIds.includes(f.id));
+            let inner = '';
+            if (project.expanded) {
+                inner = pFiles.length === 0
+                    ? `<div style="padding:5px 12px;font-size:12px;color:#666;">אין קבצים</div>`
+                    : pFiles.map(f => {
+                        const fi = files.findIndex(x => x.id === f.id);
+                        return `<div class="file-item ${fi===currentFileIndex?'active':''}" onclick="openFile(${fi})">
+                            <i class="fas fa-file-code" style="font-size:11px;"></i>
+                            <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${f.name}</span>
+                            <div class="file-actions">
+                                <button onclick="event.stopPropagation();removeFileFromProject(${f.id},${project.id})" class="file-action-btn" title="הסר">
+                                    <i class="fas fa-times"></i></button>
+                            </div>
+                        </div>`;
+                      }).join('');
+                inner += `<div class="add-file-btn" onclick="showAddFileToProject(${project.id})">
+                    <i class="fas fa-plus" style="font-size:10px;"></i> הוסף קובץ</div>`;
+            }
+            return `<div class="project-item">
+                <div class="project-header" onclick="toggleProject(${project.id})">
+                    <i class="fas fa-chevron-${project.expanded?'down':'left'}" style="font-size:9px;color:var(--text-muted);"></i>
+                    <i class="fas fa-folder${project.expanded?'-open':''}" style="color:#f59e0b;font-size:13px;"></i>
+                    <span class="project-name">${project.name}</span>
+                    <div class="project-actions">
+                        <button onclick="event.stopPropagation();renameProject(${project.id})" title="שנה שם"><i class="fas fa-pencil-alt"></i></button>
+                        <button onclick="event.stopPropagation();shareProjectById(${project.id})" title="שתף" style="color:#7b5eff;"><i class="fas fa-share-alt"></i></button>
+                        <button onclick="event.stopPropagation();deleteProject(${project.id})" title="מחק" style="color:#ff5555;"><i class="fas fa-trash"></i></button>
+                    </div>
+                </div>
+                ${project.expanded ? `<div class="project-files">${inner}</div>` : ''}
+            </div>`;
+        }).join('');
+
+    const unassigned = files.filter(f =>
+        !inProject.has(f.id) && (!searchTerm || f.name.toLowerCase().includes(searchTerm)));
+    filesList.innerHTML = unassigned.length === 0
+        ? `<div style="padding:8px 16px;color:#666;font-size:12px;">${files.length>0?'כל הקבצים בפרויקטים':'אין קבצים'}</div>`
+        : unassigned.map(f => {
+            const fi = files.findIndex(x => x.id === f.id);
+            return `<div class="file-item ${fi===currentFileIndex?'active':''}" onclick="openFile(${fi})">
+                <i class="fas fa-file-code" style="font-size:11px;"></i>
+                <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${f.name}</span>
+                <div class="file-actions">
+                    <button onclick="event.stopPropagation();showAddToProject(${f.id})" class="file-action-btn" title="הוסף לפרויקט">
+                        <i class="fas fa-folder-plus"></i></button>
+                </div>
+            </div>`;
+          }).join('');
+}
+
+function renderTabs() {
+    tabsContainer.innerHTML = files.map((f,i) => `
+        <div class="tab ${i===currentFileIndex?'active':''}" onclick="openFile(${i})">
+            <i class="fas fa-file-code" style="font-size:10px;"></i>
+            <span>${f.name}</span>
+            <span class="tab-close" onclick="event.stopImmediatePropagation();closeTab(${i});">✕</span>
+        </div>`).join('');
+}
+
+/* ═══════════════════════════════════════════════
+   FILE OPS
+═══════════════════════════════════════════════ */
+function openFile(i) {
+    if (i < 0 || i >= files.length) return;
+    currentFileIndex = i;
+    editor.value = files[i].content || '';
+    document.getElementById('current-file-name').textContent = files[i].name;
+    renderProjectsAndFiles(); renderTabs(); livePreview(); updateStats();
+}
+
+function closeTab(i) {
+    if (files.length === 1) {
+        files = []; currentFileIndex = -1; editor.value = '';
+        document.getElementById('current-file-name').textContent = 'אין קבצים';
+    } else {
+        if (i === currentFileIndex) currentFileIndex = i > 0 ? i-1 : 0;
+        else if (i < currentFileIndex) currentFileIndex--;
+        files.splice(i, 1);
+    }
+    renderProjectsAndFiles(); renderTabs();
+    if (files.length > 0 && currentFileIndex >= 0) openFile(currentFileIndex);
+    saveToStorage();
+}
+
+function newFile() {
+    const f = { id: Date.now(), name: `קובץ-${files.length+1}.html`,
+        content: `<!DOCTYPE html>\n<html lang="he" dir="rtl">\n<head>\n    <meta charset="UTF-8">\n    <title>קובץ חדש</title>\n</head>\n<body>\n    <h1>שלום עולם</h1>\n</body>\n</html>` };
+    files.push(f); currentFileIndex = files.length - 1;
+    editor.value = f.content;
+    document.getElementById('current-file-name').textContent = f.name;
+    renderProjectsAndFiles(); renderTabs(); saveToStorage();
+}
+
+function triggerFileUpload() {
+    const input = document.createElement('input');
+    input.type = 'file'; input.accept = '.html,.htm,.css,.js,.txt';
+    input.onchange = e => {
+        const file = e.target.files[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = ev => {
+            const f = { id: Date.now(), name: file.name, content: ev.target.result };
+            files.push(f); currentFileIndex = files.length - 1;
+            editor.value = f.content;
+            document.getElementById('current-file-name').textContent = f.name;
+            renderProjectsAndFiles(); renderTabs(); livePreview(); saveToStorage();
+            showToast(`קובץ נטען: ${file.name}`);
+        };
+        reader.readAsText(file);
+    };
+    input.click();
+}
+
+function quickSave() {
+    if (currentFileIndex < 0) { showToast("אין קובץ פעיל", "exclamation-circle", "#ff9800"); return; }
+    files[currentFileIndex].content = editor.value;
+    saveToStorage();
+    showToast("נשמר", "check-circle", "#22c55e");
+}
+
+function saveAsFile() {
+    if (currentFileIndex < 0) { showToast("אין קובץ", "exclamation-circle", "#ff9800"); return; }
+    document.getElementById('filename-input').value = files[currentFileIndex].name;
+    document.getElementById('save-modal').style.display = 'flex';
+}
+
+function confirmSaveAs() {
+    const filename = document.getElementById('filename-input').value || 'index.html';
+    if (currentFileIndex >= 0) {
+        files[currentFileIndex].name = filename;
+        document.getElementById('current-file-name').textContent = filename;
+        const blob = new Blob([editor.value], { type: 'text/html' });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a');
+        a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
+        renderProjectsAndFiles(); renderTabs(); saveToStorage();
+        showToast(`${filename} ירד למחשב`);
+    }
+    closeSaveModal();
+}
+
+function closeSaveModal() { document.getElementById('save-modal').style.display = 'none'; }
+
+/* ═══════════════════════════════════════════════
+   PROJECT OPS
+═══════════════════════════════════════════════ */
+function newProject() {
+    const name = prompt("שם הפרויקט:", `פרויקט ${projects.length+1}`);
+    if (!name?.trim()) return;
+    projects.push({ id: Date.now(), name: name.trim(), fileIds: [], expanded: true });
+    renderProjectsAndFiles(); saveToStorage();
+    showToast(`פרויקט "${name.trim()}" נוצר`, "folder-open", "#f59e0b");
+}
+function toggleProject(id) {
+    const p = projects.find(x => x.id === id);
+    if (p) { p.expanded = !p.expanded; renderProjectsAndFiles(); }
+}
+function renameProject(id) {
+    const p = projects.find(x => x.id === id); if (!p) return;
+    const name = prompt("שם חדש:", p.name);
+    if (name?.trim()) { p.name = name.trim(); renderProjectsAndFiles(); saveToStorage(); showToast("שם עודכן"); }
+}
+function deleteProject(id) {
+    if (!confirm("למחוק את הפרויקט?")) return;
+    projects = projects.filter(p => p.id !== id);
+    renderProjectsAndFiles(); saveToStorage(); showToast("הפרויקט נמחק");
+}
+function removeFileFromProject(fileId, projectId) {
+    const p = projects.find(x => x.id === projectId);
+    if (p) { p.fileIds = p.fileIds.filter(id => id !== fileId); renderProjectsAndFiles(); saveToStorage(); }
+}
+function showAddToProject(fileId) {
+    if (projects.length === 0) { showToast("צור פרויקט קודם", "folder-plus", "#ff9800"); return; }
+    document.getElementById('add-to-project-list').innerHTML = projects.map(p =>
+        `<div class="share-file-item" onclick="addFileToProject(${fileId},${p.id})">
+            <i class="fas fa-folder" style="color:#f59e0b;"></i> <span>${p.name}</span>
+        </div>`).join('');
+    document.getElementById('add-to-project-modal').style.display = 'flex';
+}
+function showAddFileToProject(projectId) {
+    const p = projects.find(x => x.id === projectId); if (!p) return;
+    const available = files.filter(f => !p.fileIds.includes(f.id));
+    if (available.length === 0) { showToast("כל הקבצים כבר בפרויקט", "info-circle", "#ff9800"); return; }
+    document.getElementById('add-to-project-list').innerHTML = available.map(f =>
+        `<div class="share-file-item" onclick="addFileToProject(${f.id},${projectId})">
+            <i class="fas fa-file-code" style="color:var(--primary);"></i> <span>${f.name}</span>
+        </div>`).join('');
+    document.getElementById('add-to-project-modal').style.display = 'flex';
+}
+function addFileToProject(fileId, projectId) {
+    const p = projects.find(x => x.id === projectId);
+    if (p && !p.fileIds.includes(fileId)) {
+        p.fileIds.push(fileId); renderProjectsAndFiles(); saveToStorage();
+        showToast("הקובץ נוסף לפרויקט", "folder-plus", "#f59e0b");
+    }
+    closeAddToProjectModal();
+}
+function closeAddToProjectModal() { document.getElementById('add-to-project-modal').style.display = 'none'; }
+
+function openShareProjectModal() {
+    if (projects.length === 0) { showToast("אין פרויקטים לשתף", "exclamation-circle", "#ff9800"); return; }
+    populateProjectSelector();
+    document.getElementById('share-result-link').classList.remove('show');
+    document.getElementById('share-project-modal').style.display = 'flex';
+    loadShareProjectFiles();
+}
+function shareProjectById(id) {
+    if (!currentUser) { showAuthModal(); showToast("יש להתחבר לשיתוף", "lock", "#ff9800"); return; }
+    populateProjectSelector();
+    document.getElementById('share-project-selector').value = id;
+    document.getElementById('share-result-link').classList.remove('show');
+    document.getElementById('share-project-modal').style.display = 'flex';
+    loadShareProjectFiles();
+}
+function populateProjectSelector() {
+    document.getElementById('share-project-selector').innerHTML =
+        projects.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+}
+function loadShareProjectFiles() {
+    const p = projects.find(x => x.id === parseInt(document.getElementById('share-project-selector').value));
+    const c = document.getElementById('share-project-files');
+    if (!p || p.fileIds.length === 0) { c.innerHTML = `<div style="color:#666;font-size:13px;padding:12px;">אין קבצים בפרויקט</div>`; return; }
+    c.innerHTML = files.filter(f => p.fileIds.includes(f.id)).map(f => `
+        <div class="share-file-item">
+            <input type="checkbox" id="sf-${f.id}" value="${f.id}" checked style="cursor:pointer;accent-color:var(--primary);">
+            <label for="sf-${f.id}"><i class="fas fa-file-code" style="color:var(--primary);"></i> ${f.name}</label>
+        </div>`).join('');
+}
+function downloadSelectedFiles() {
+    const checked = document.querySelectorAll('#share-project-files input[type=checkbox]:checked');
+    if (checked.length === 0) { showToast("לא נבחרו קבצים", "exclamation-circle", "#ff9800"); return; }
+    checked.forEach(cb => {
+        const f = files.find(x => x.id === parseInt(cb.value)); if (!f) return;
+        const blob = new Blob([f.content], { type: 'text/html' });
+        const url  = URL.createObjectURL(blob);
+        const a    = document.createElement('a'); a.href=url; a.download=f.name; a.click(); URL.revokeObjectURL(url);
+    });
+    showToast(`${checked.length} קבצים הורדו`);
+}
+function closeShareProjectModal() { document.getElementById('share-project-modal').style.display = 'none'; }
+
+/* ═══════════════════════════════════════════════
+   MISC
+═══════════════════════════════════════════════ */
+function formatCode() { showToast("הקוד עוצב"); }
+function clearAllFiles() {
+    if (!confirm("למחוק את כל הקבצים?")) return;
+    files=[]; currentFileIndex=-1; editor.value='';
+    document.getElementById('current-file-name').textContent='אין קבצים';
+    renderProjectsAndFiles(); renderTabs(); saveToStorage(); showToast("כל הקבצים נמחקו");
+}
+function toggleSidebarMenu() { document.getElementById('sidebar-menu').classList.toggle('open'); }
+
+/* ═══════════════════════════════════════════════
+   DRAG & DROP
+═══════════════════════════════════════════════ */
+function setupDragAndDrop() {
+    const wrapper = document.querySelector('.editor-wrapper');
+    wrapper.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.display='flex'; });
+    wrapper.addEventListener('dragleave', () => dropZone.style.display='none');
+    wrapper.addEventListener('drop', e => {
+        e.preventDefault(); dropZone.style.display='none';
+        const file = e.dataTransfer.files[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = ev => {
+            const f = { id: Date.now(), name: file.name, content: ev.target.result };
+            files.push(f); currentFileIndex = files.length-1;
+            editor.value = f.content;
+            document.getElementById('current-file-name').textContent = f.name;
+            renderProjectsAndFiles(); renderTabs(); livePreview(); saveToStorage();
+            showToast(`קובץ נטען: ${file.name}`);
+        };
+        reader.readAsText(file);
+    });
+}
+
+/* ═══════════════════════════════════════════════
+   INIT
+═══════════════════════════════════════════════ */
+function init() {
+    try {
+        const sf = localStorage.getItem('codesphere_files_v4');
+        const sp = localStorage.getItem('codesphere_projects_v1');
+        if (sf) files    = JSON.parse(sf);
+        if (sp) projects = JSON.parse(sp);
+    } catch(e) {}
+
+    if (files.length === 0) {
+        files = [{ id:1, name:'index.html',
+            content:`<!DOCTYPE html>\n<html lang="he" dir="rtl">\n<head>\n    <meta charset="UTF-8">\n    <title>CodeSphere</title>\n</head>\n<body style="font-family:Arial;text-align:center;padding-top:100px;background:#0a0a0f;color:#e0e0ff;">\n    <h1 style="color:#00d4ff;">ברוך הבא ל-CodeSphere</h1>\n    <p>כניסה עם חשבון נדרשת לשמירה בענן ושיתוף</p>\n</body>\n</html>`
+        }];
+    }
+
+    currentFileIndex = 0;
+    editor.value = files[0].content;
+    document.getElementById('current-file-name').textContent = files[0].name;
+    renderProjectsAndFiles(); renderTabs(); updateStats();
+
+    editor.addEventListener('input', () => {
+        if (currentFileIndex >= 0) files[currentFileIndex].content = editor.value;
+        livePreview(); updateStats();
+    });
+
+    document.addEventListener('keydown', e => {
+        if (e.ctrlKey && e.key === 's') { e.preventDefault(); saveAsFile(); }
+        if (e.ctrlKey && e.key === 'q') { e.preventDefault(); quickSave(); }
+        if (e.key === 'Escape') {
+            document.getElementById('sidebar-menu').classList.remove('open');
+            document.getElementById('files-sidebar').classList.remove('open');
+            isFilesSidebarOpen = false;
+            // Don't close auth modal on Escape — user must press "לא עכשיו"
+        }
+    });
+
+    setupDragAndDrop();
+    setInterval(saveToStorage, 8000);
+
+    // ── Auto-show auth modal after 3 seconds if not logged in ──
+    setTimeout(() => {
+        if (!currentUser && !sessionStorage.getItem('auth_dismissed')) {
+            showAuthModal();
+        }
+    }, 3000);
+
+    setTimeout(() => showToast("ברוך הבא ל-CodeSphere", "cube", "#00d4ff"), 600);
+}
+
+window.onload = init;
+</script>
+</body>
+</html>
