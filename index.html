@@ -269,16 +269,31 @@
             padding: 18px;
         }
         .preview-frame {
-            width: min(100%, 1180px);
-            height: min(100%, 700px);
+            --bezel-size: 14px;
             border-radius: 14px;
             overflow: hidden;
-            background: white;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-            transition: width 0.25s ease, height 0.25s ease;
+            background: #151824;
+            border: 1px solid #2b3144;
+            box-shadow: 0 14px 36px rgba(0,0,0,0.45);
+            padding: var(--bezel-size);
+            transition: all 0.25s ease;
+            position: relative;
         }
-        .preview-frame.device-tablet { width: min(100%, 820px); height: min(100%, 1024px); }
-        .preview-frame.device-phone { width: min(100%, 390px); height: min(100%, 844px); }
+        .preview-frame.device-desktop { --bezel-size: 12px; border-radius: 12px; }
+        .preview-frame.device-tablet { --bezel-size: 14px; border-radius: 24px; }
+        .preview-frame.device-phone { --bezel-size: 13px; border-radius: 34px; }
+        .preview-scale-shell {
+            position: relative;
+            overflow: hidden;
+            background: #fff;
+        }
+        .preview-viewport {
+            position: absolute;
+            top: 0;
+            right: 0;
+            transform-origin: top right;
+            background: #fff;
+        }
         #preview { width: 100%; border: none; height: 100%; display: block; }
 
         /* ── AI PANEL (RIGHT) ── */
@@ -500,7 +515,13 @@
             </div>
         </div>
         <div class="preview-stage">
-            <div class="preview-frame device-desktop" id="preview-frame"><iframe id="preview"></iframe></div>
+            <div class="preview-frame device-desktop" id="preview-frame">
+                <div class="preview-scale-shell" id="preview-scale-shell">
+                    <div class="preview-viewport" id="preview-viewport">
+                        <iframe id="preview"></iframe>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -753,10 +774,21 @@ const editor = {
     }
 };
 const preview       = document.getElementById('preview');
+const previewPanel  = document.getElementById('preview-panel');
+const previewFrame  = document.getElementById('preview-frame');
+const previewStage  = document.querySelector('.preview-stage');
+const previewShell  = document.getElementById('preview-scale-shell');
+const previewView   = document.getElementById('preview-viewport');
 const tabsContainer = document.getElementById('tabs-container');
 const toast         = document.getElementById('toast');
 const toastText     = document.getElementById('toast-text');
 const toastIcon     = document.getElementById('toast-icon');
+
+const previewDeviceSizes = {
+    desktop: { width: 1366, height: 768 },
+    tablet: { width: 834, height: 1112 },
+    phone: { width: 390, height: 844 }
+};
 const dropZone      = document.getElementById('drop-zone');
 const aiMessages    = document.getElementById('ai-messages');
 const codeSearchInput = document.getElementById('code-search-input');
@@ -1302,24 +1334,44 @@ function livePreview() {
 
 function togglePreview() {
     isPreviewOpen = !isPreviewOpen;
-    const panel = document.getElementById('preview-panel');
     const btn   = document.getElementById('preview-btn');
     const main  = document.querySelector('.main-container');
-    panel.classList.toggle('active', isPreviewOpen);
+    previewPanel.classList.toggle('active', isPreviewOpen);
     main.classList.toggle('preview-open', isPreviewOpen);
     btn.style.background = isPreviewOpen ? 'var(--primary)' : '';
     btn.style.color = isPreviewOpen ? '#000' : '';
-    if (isPreviewOpen) livePreview();
+    if (isPreviewOpen) {
+        livePreview();
+        requestAnimationFrame(syncPreviewFrameSize);
+    }
 }
 
 function setPreviewDevice(device) {
     currentPreviewDevice = device;
-    const frame = document.getElementById('preview-frame');
-    frame.classList.remove('device-desktop', 'device-tablet', 'device-phone');
-    frame.classList.add(`device-${device}`);
+    previewFrame.classList.remove('device-desktop', 'device-tablet', 'device-phone');
+    previewFrame.classList.add(`device-${device}`);
     document.querySelectorAll('.preview-device-btn').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.device === device);
     });
+    syncPreviewFrameSize();
+}
+
+function syncPreviewFrameSize() {
+    if (!isPreviewOpen) return;
+    const deviceSize = previewDeviceSizes[currentPreviewDevice] || previewDeviceSizes.desktop;
+    const stageRect = previewStage.getBoundingClientRect();
+    const bezel = currentPreviewDevice === 'desktop' ? 24 : 28;
+    const availableWidth = Math.max(160, stageRect.width - bezel);
+    const availableHeight = Math.max(160, stageRect.height - bezel);
+    const scale = Math.min(availableWidth / deviceSize.width, availableHeight / deviceSize.height, 1);
+    const scaledWidth = Math.max(130, Math.floor(deviceSize.width * scale));
+    const scaledHeight = Math.max(130, Math.floor(deviceSize.height * scale));
+
+    previewShell.style.width = `${scaledWidth}px`;
+    previewShell.style.height = `${scaledHeight}px`;
+    previewView.style.width = `${deviceSize.width}px`;
+    previewView.style.height = `${deviceSize.height}px`;
+    previewView.style.transform = `scale(${scale})`;
 }
 
 /* ═══════════════════════════════════════════════
@@ -1743,6 +1795,7 @@ function init() {
 
     setupDragAndDrop();
     setInterval(saveToStorage, 8000);
+    window.addEventListener('resize', syncPreviewFrameSize);
 
     // ── Auto-show auth modal after 3 seconds if not logged in ──
     setTimeout(() => {
