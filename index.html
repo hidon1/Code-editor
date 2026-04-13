@@ -96,6 +96,44 @@
             display: flex; background: var(--surface2);
             border-bottom: 1px solid var(--border); min-height: 44px; overflow-x: auto; flex-shrink: 0;
         }
+        .editor-toolbar {
+            position: relative;
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            padding: 10px 12px;
+            background: var(--surface);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        .editor-toolbar input {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            color: var(--text);
+            border-radius: 8px;
+            padding: 8px 10px;
+            font-size: 13px;
+            outline: none;
+        }
+        .editor-toolbar input:focus { border-color: var(--primary); }
+        #code-search-input, #code-replace-input { min-width: 180px; }
+        .search-results-panel {
+            position: absolute;
+            top: 100%;
+            left: 12px;
+            margin-top: 6px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 8px 10px;
+            display: none;
+            gap: 8px;
+            align-items: center;
+            z-index: 40;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.35);
+            font-size: 12px;
+        }
+        .search-results-panel.show { display: flex; }
         .tab {
             padding: 0 16px; display: flex; align-items: center; gap: 8px;
             border-right: 1px solid var(--border); cursor: pointer; white-space: nowrap;
@@ -105,12 +143,31 @@
         .tab.active::after { content:''; position:absolute; bottom:0; left:0; right:0; height:2px; background:var(--primary); }
         .tab-close { width:17px; height:17px; display:flex; align-items:center; justify-content:center; border-radius:50%; font-size:11px; }
         .tab-close:hover { background:#ff4444; color:white; }
-        .editor-wrapper { flex:1; position:relative; min-height:0; }
+        .editor-wrapper { flex:1; position:relative; min-height:0; background:#1e1e2e; }
+        [data-theme="light"] .editor-wrapper { background:#f8f9fc; }
+        .line-numbers {
+            position: absolute;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            width: 56px;
+            border-right: 1px solid var(--border);
+            background: rgba(0,0,0,0.18);
+            color: var(--text-muted);
+            font-family:'Courier New','Consolas',monospace;
+            font-size:15px;
+            line-height:1.75;
+            text-align: right;
+            padding: 28px 8px 28px 6px;
+            overflow: hidden;
+            user-select: none;
+        }
+        [data-theme="light"] .line-numbers { background: rgba(0,0,0,0.03); }
         #code-editor {
             position:absolute; inset:0; width:100%; height:100%;
             background:#1e1e2e; color:#cdd6f4;
             font-family:'Courier New','Consolas',monospace; font-size:15px; line-height:1.75;
-            padding:28px 36px; border:none; outline:none; resize:none; overflow:auto;
+            padding:28px 36px 28px 72px; border:none; outline:none; resize:none; overflow:auto;
             direction:ltr; box-shadow:inset 0 0 60px rgba(0,0,0,0.4);
         }
         [data-theme="light"] #code-editor { background:#f8f9fc; color:#1a1a2e; }
@@ -347,7 +404,21 @@
 <div class="main-container">
     <div class="editor-area">
         <div class="tabs" id="tabs-container"></div>
+        <div class="editor-toolbar">
+            <i class="fas fa-search" style="color:var(--primary);"></i>
+            <input type="text" id="code-search-input" placeholder="חיפוש בקוד...">
+            <input type="text" id="code-replace-input" placeholder="החלפה ל...">
+            <button class="btn" onclick="goToSearchMatch(-1)"><i class="fas fa-chevron-up"></i></button>
+            <button class="btn" onclick="goToSearchMatch(1)"><i class="fas fa-chevron-down"></i></button>
+            <button class="btn" onclick="replaceCurrentMatch()"><i class="fas fa-pen"></i> החלף</button>
+            <div id="search-inline-count" style="font-size:12px;color:var(--text-muted);">0 תוצאות</div>
+            <div class="search-results-panel" id="search-results-panel">
+                <span id="search-result-label">לא נמצאו תוצאות</span>
+                <button class="btn btn-primary" onclick="replaceAllMatches()"><i class="fas fa-wand-magic-sparkles"></i> החלף הכל</button>
+            </div>
+        </div>
         <div class="editor-wrapper">
+            <div class="line-numbers" id="line-numbers">1</div>
             <textarea id="code-editor" spellcheck="false" placeholder="כתוב את הקוד כאן..."></textarea>
             <div class="drop-zone" id="drop-zone">
                 <i class="fas fa-cloud-upload-alt" style="font-size:68px;opacity:0.6;"></i>
@@ -357,6 +428,8 @@
         <div class="status-bar">
             <div>שורות: <span id="line-count">1</span></div>
             <div>תווים: <span id="char-count">0</span></div>
+            <div>שורה נוכחית: <span id="cursor-line">1</span></div>
+            <div>תו נוכחי: <span id="cursor-char">1</span></div>
             <div id="current-file-name">index.html</div>
             <div style="margin-right:auto;color:var(--primary);cursor:pointer;" onclick="formatCode()">
                 <i class="fas fa-magic"></i> יפה
@@ -609,6 +682,13 @@ const toastText     = document.getElementById('toast-text');
 const toastIcon     = document.getElementById('toast-icon');
 const dropZone      = document.getElementById('drop-zone');
 const aiMessages    = document.getElementById('ai-messages');
+const lineNumbers   = document.getElementById('line-numbers');
+const codeSearchInput = document.getElementById('code-search-input');
+const codeReplaceInput = document.getElementById('code-replace-input');
+const searchPanel = document.getElementById('search-results-panel');
+
+let searchMatches = [];
+let currentSearchMatchIndex = -1;
 
 const FIREBASE_CONFIG = {
     apiKey:            "AIzaSyCRT2Bgu1V4RAjhR5CiTSjAgkKJQmXh2vc",
@@ -906,8 +986,93 @@ function showToast(msg, icon = 'check-circle', color = '#22c55e') {
 }
 
 function updateStats() {
-    document.getElementById('line-count').textContent = editor.value.split('\n').length;
+    const lines = editor.value.split('\n').length;
+    document.getElementById('line-count').textContent = lines;
     document.getElementById('char-count').textContent = editor.value.length;
+    renderLineNumbers(lines);
+    updateCursorStats();
+}
+
+function renderLineNumbers(lines) {
+    lineNumbers.innerHTML = Array.from({ length: lines }, (_, i) => `<div>${i + 1}</div>`).join('');
+}
+
+function syncLineNumberScroll() {
+    lineNumbers.scrollTop = editor.scrollTop;
+}
+
+function updateCursorStats() {
+    const cursorIndex = editor.selectionStart;
+    const valueBeforeCursor = editor.value.slice(0, cursorIndex);
+    const line = valueBeforeCursor.split('\n').length;
+    const col = cursorIndex - valueBeforeCursor.lastIndexOf('\n');
+    document.getElementById('cursor-line').textContent = line;
+    document.getElementById('cursor-char').textContent = col;
+}
+
+function escapeRegExp(str) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function recalculateSearchResults(keepIndex = false) {
+    const term = codeSearchInput.value;
+    searchMatches = [];
+    if (term) {
+        const regex = new RegExp(escapeRegExp(term), 'g');
+        let match;
+        while ((match = regex.exec(editor.value)) !== null) {
+            searchMatches.push({ start: match.index, end: match.index + term.length });
+            if (match.index === regex.lastIndex) regex.lastIndex++;
+        }
+    }
+    if (!keepIndex) currentSearchMatchIndex = searchMatches.length > 0 ? 0 : -1;
+    if (keepIndex && currentSearchMatchIndex >= searchMatches.length) currentSearchMatchIndex = searchMatches.length - 1;
+    updateSearchUI();
+}
+
+function updateSearchUI() {
+    const total = searchMatches.length;
+    const current = total > 0 ? currentSearchMatchIndex + 1 : 0;
+    document.getElementById('search-inline-count').textContent = total === 0 ? '0 תוצאות' : `${current}/${total} תוצאות`;
+    document.getElementById('search-result-label').textContent = total === 0 ? 'לא נמצאו תוצאות' : `נמצאו ${total} תוצאות`;
+    searchPanel.classList.toggle('show', codeSearchInput.value.trim().length > 0);
+    if (currentSearchMatchIndex >= 0 && total > 0) {
+        const currentMatch = searchMatches[currentSearchMatchIndex];
+        editor.focus();
+        editor.setSelectionRange(currentMatch.start, currentMatch.end);
+    }
+}
+
+function goToSearchMatch(direction) {
+    recalculateSearchResults(true);
+    if (searchMatches.length === 0) return;
+    currentSearchMatchIndex = (currentSearchMatchIndex + direction + searchMatches.length) % searchMatches.length;
+    updateSearchUI();
+}
+
+function replaceCurrentMatch() {
+    recalculateSearchResults(true);
+    if (searchMatches.length === 0 || currentSearchMatchIndex < 0) return;
+    const replacement = codeReplaceInput.value;
+    const match = searchMatches[currentSearchMatchIndex];
+    editor.value = editor.value.slice(0, match.start) + replacement + editor.value.slice(match.end);
+    if (currentFileIndex >= 0) files[currentFileIndex].content = editor.value;
+    livePreview(); updateStats();
+    recalculateSearchResults(true);
+}
+
+function replaceAllMatches() {
+    const term = codeSearchInput.value;
+    if (!term) return;
+    const replacement = codeReplaceInput.value;
+    const regex = new RegExp(escapeRegExp(term), 'g');
+    const matchCount = (editor.value.match(regex) || []).length;
+    if (matchCount === 0) return;
+    editor.value = editor.value.replace(regex, replacement);
+    if (currentFileIndex >= 0) files[currentFileIndex].content = editor.value;
+    livePreview(); updateStats();
+    recalculateSearchResults();
+    showToast(`הוחלפו ${matchCount} תוצאות`, "wand-magic-sparkles", "#22c55e");
 }
 
 function saveToStorage() {
@@ -1214,6 +1379,7 @@ function openFile(i) {
     editor.value = files[i].content || '';
     document.getElementById('current-file-name').textContent = files[i].name;
     renderProjectsAndFiles(); renderTabs(); livePreview(); updateStats();
+    recalculateSearchResults();
 }
 
 function closeTab(i) {
@@ -1228,6 +1394,7 @@ function closeTab(i) {
     renderProjectsAndFiles(); renderTabs();
     if (files.length > 0 && currentFileIndex >= 0) openFile(currentFileIndex);
     saveToStorage();
+    recalculateSearchResults();
 }
 
 function newFile() {
@@ -1237,6 +1404,8 @@ function newFile() {
     editor.value = f.content;
     document.getElementById('current-file-name').textContent = f.name;
     renderProjectsAndFiles(); renderTabs(); saveToStorage();
+    updateStats();
+    recalculateSearchResults();
 }
 
 function triggerFileUpload() {
@@ -1251,6 +1420,8 @@ function triggerFileUpload() {
             editor.value = f.content;
             document.getElementById('current-file-name').textContent = f.name;
             renderProjectsAndFiles(); renderTabs(); livePreview(); saveToStorage();
+            updateStats();
+            recalculateSearchResults();
             showToast(`קובץ נטען: ${file.name}`);
         };
         reader.readAsText(file);
@@ -1415,6 +1586,8 @@ function setupDragAndDrop() {
             editor.value = f.content;
             document.getElementById('current-file-name').textContent = f.name;
             renderProjectsAndFiles(); renderTabs(); livePreview(); saveToStorage();
+            updateStats();
+            recalculateSearchResults();
             showToast(`קובץ נטען: ${file.name}`);
         };
         reader.readAsText(file);
@@ -1445,12 +1618,35 @@ function init() {
 
     editor.addEventListener('input', () => {
         if (currentFileIndex >= 0) files[currentFileIndex].content = editor.value;
-        livePreview(); updateStats();
+        livePreview(); updateStats(); recalculateSearchResults(true);
+    });
+    editor.addEventListener('scroll', syncLineNumberScroll);
+    editor.addEventListener('keyup', updateCursorStats);
+    editor.addEventListener('click', updateCursorStats);
+    editor.addEventListener('select', updateCursorStats);
+
+    codeSearchInput.addEventListener('input', () => recalculateSearchResults());
+    codeSearchInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            goToSearchMatch(1);
+        }
+    });
+    codeReplaceInput.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            replaceCurrentMatch();
+        }
     });
 
     document.addEventListener('keydown', e => {
         if (e.ctrlKey && e.key === 's') { e.preventDefault(); saveAsFile(); }
         if (e.ctrlKey && e.key === 'q') { e.preventDefault(); quickSave(); }
+        if (e.ctrlKey && e.key.toLowerCase() === 'f') {
+            e.preventDefault();
+            codeSearchInput.focus();
+            codeSearchInput.select();
+        }
         if (e.key === 'Escape') {
             document.getElementById('sidebar-menu').classList.remove('open');
             document.getElementById('files-sidebar').classList.remove('open');
