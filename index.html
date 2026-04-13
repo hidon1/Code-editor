@@ -90,21 +90,20 @@
         .user-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
         /* ── MAIN ── */
-        .main-container { display: flex; height: calc(100vh - 54px); margin-top: 54px; }
+        .main-container { display: flex; height: calc(100vh - 54px); margin-top: 54px; min-width: 0; }
+        .main-container.preview-open .editor-area { flex: 1 1 58%; }
         .editor-area { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
         .tabs {
             display: flex; background: var(--surface2);
             border-bottom: 1px solid var(--border); min-height: 44px; overflow-x: auto; flex-shrink: 0;
         }
         .editor-toolbar {
-            position: relative;
             display: flex;
-            gap: 8px;
+            gap: 6px;
             align-items: center;
-            padding: 10px 12px;
-            background: var(--surface);
-            border-bottom: 1px solid var(--border);
-            flex-shrink: 0;
+            min-width: 300px;
+            max-width: 470px;
+            position: relative;
         }
         .editor-toolbar input {
             background: var(--surface2);
@@ -116,11 +115,11 @@
             outline: none;
         }
         .editor-toolbar input:focus { border-color: var(--primary); }
-        #code-search-input, #code-replace-input { min-width: 180px; }
+        #code-search-input, #code-replace-input { min-width: 120px; }
         .search-results-panel {
             position: absolute;
             top: 100%;
-            left: 12px;
+            right: 0;
             margin-top: 6px;
             background: var(--surface2);
             border: 1px solid var(--border);
@@ -211,16 +210,79 @@
 
         /* ── PREVIEW PANEL (LEFT) ── */
         .preview-panel {
-            position:fixed; top:54px; bottom:0; left:-62%; width:60%;
-            background:var(--surface); border-right:1px solid var(--border);
-            box-shadow:14px 0 40px rgba(0,0,0,0.6);
-            transition:left 0.5s cubic-bezier(0.32,0.72,0,1);
-            display:flex; flex-direction:column; z-index:100;
+            width: 0;
+            opacity: 0;
+            pointer-events: none;
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            transition: width 0.35s ease, opacity 0.25s ease;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
-        .preview-panel.active { left:0; }
-        .preview-header { padding:11px 18px; background:var(--surface2); border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center; font-size:14px; flex-shrink:0; }
-        .preview-frame { flex:1; margin:12px; border-radius:10px; overflow:hidden; background:white; box-shadow:0 8px 24px rgba(0,0,0,0.3); }
-        #preview { width:100%; height:100%; border:none; }
+        .preview-panel.active {
+            width: 42%;
+            min-width: 360px;
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .preview-header {
+            padding: 10px 12px;
+            background: var(--surface2);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+        .preview-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+        .preview-controls { display: flex; align-items: center; gap: 6px; }
+        .preview-device-btn {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--surface);
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .preview-device-btn.active {
+            background: var(--primary);
+            color: #000;
+            border-color: transparent;
+        }
+        .preview-stage {
+            flex: 1;
+            margin: 12px;
+            border-radius: 10px;
+            background: #0f1119;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            overflow: auto;
+            padding: 18px;
+        }
+        .preview-frame {
+            width: min(100%, 1200px);
+            min-height: 100%;
+            border-radius: 14px;
+            overflow: hidden;
+            background: white;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+            transition: width 0.25s ease;
+        }
+        .preview-frame.device-tablet { width: min(100%, 820px); }
+        .preview-frame.device-phone { width: min(100%, 390px); }
+        #preview { width: 100%; min-height: 100%; border: none; height: 100%; }
 
         /* ── AI PANEL (RIGHT) ── */
         .ai-panel {
@@ -382,6 +444,18 @@
         <button onclick="createPublicLink()" class="btn" style="background:#7b5eff;color:white;">
             <i class="fas fa-share-alt"></i><span>שתף</span>
         </button>
+        <div class="editor-toolbar">
+            <i class="fas fa-search" style="color:var(--primary);"></i>
+            <input type="text" id="code-search-input" placeholder="חיפוש בקוד...">
+            <button class="btn" onclick="goToSearchMatch(1)"><i class="fas fa-chevron-down"></i></button>
+            <div id="search-inline-count" style="font-size:12px;color:var(--text-muted);">0 תוצאות</div>
+            <div class="search-results-panel" id="search-results-panel">
+                <label for="code-replace-input" style="font-size:12px;color:var(--text-muted);">החלף ל</label>
+                <input type="text" id="code-replace-input" placeholder="טקסט חלופי...">
+                <button class="btn" onclick="replaceCurrentMatch()"><i class="fas fa-pen"></i> החלף</button>
+                <button class="btn btn-primary" onclick="replaceAllMatches()"><i class="fas fa-wand-magic-sparkles"></i> החלף הכל</button>
+            </div>
+        </div>
         <button onclick="togglePreview()" class="btn" id="preview-btn">
             <i class="fas fa-eye"></i><span>תצוגה מקדימה</span>
         </button>
@@ -404,18 +478,6 @@
 <div class="main-container">
     <div class="editor-area">
         <div class="tabs" id="tabs-container"></div>
-        <div class="editor-toolbar">
-            <i class="fas fa-search" style="color:var(--primary);"></i>
-            <input type="text" id="code-search-input" placeholder="חיפוש בקוד...">
-            <button class="btn" onclick="goToSearchMatch(1)"><i class="fas fa-chevron-down"></i></button>
-            <div id="search-inline-count" style="font-size:12px;color:var(--text-muted);">0 תוצאות</div>
-            <div class="search-results-panel" id="search-results-panel">
-                <label for="code-replace-input" style="font-size:12px;color:var(--text-muted);">החלף ל</label>
-                <input type="text" id="code-replace-input" placeholder="טקסט חלופי...">
-                <button class="btn" onclick="replaceCurrentMatch()"><i class="fas fa-pen"></i> החלף</button>
-                <button class="btn btn-primary" onclick="replaceAllMatches()"><i class="fas fa-wand-magic-sparkles"></i> החלף הכל</button>
-            </div>
-        </div>
         <div class="editor-wrapper">
             <div class="line-numbers" id="line-numbers">1</div>
             <textarea id="code-editor" spellcheck="false" placeholder="כתוב את הקוד כאן..."></textarea>
@@ -431,6 +493,22 @@
             <div style="margin-right:auto;color:var(--primary);cursor:pointer;" onclick="formatCode()">
                 <i class="fas fa-magic"></i> יפה
             </div>
+        </div>
+    </div>
+
+    <!-- ═══ PREVIEW (SIDE BY SIDE) ═══ -->
+    <div class="preview-panel" id="preview-panel">
+        <div class="preview-header">
+            <div class="preview-title"><i class="fas fa-eye" style="color:var(--primary);"></i> תצוגה מקדימה</div>
+            <div class="preview-controls">
+                <button class="preview-device-btn active" data-device="desktop" title="מחשב" onclick="setPreviewDevice('desktop')"><i class="fas fa-desktop"></i></button>
+                <button class="preview-device-btn" data-device="tablet" title="טאבלט" onclick="setPreviewDevice('tablet')"><i class="fas fa-tablet-alt"></i></button>
+                <button class="preview-device-btn" data-device="phone" title="טלפון" onclick="setPreviewDevice('phone')"><i class="fas fa-mobile-alt"></i></button>
+                <div onclick="togglePreview()" style="cursor:pointer;font-size:20px;color:#ff5555;margin-inline-start:6px;">✕</div>
+            </div>
+        </div>
+        <div class="preview-stage">
+            <div class="preview-frame device-desktop" id="preview-frame"><iframe id="preview"></iframe></div>
         </div>
     </div>
 </div>
@@ -457,15 +535,6 @@
     <div onclick="showCloudFiles()" style="padding:12px 16px;text-align:center;color:var(--primary);border-top:1px solid var(--border);cursor:pointer;font-size:13px;flex-shrink:0;">
         <i class="fas fa-cloud"></i> טעון מהענן
     </div>
-</div>
-
-<!-- ═══ PREVIEW (LEFT) ═══ -->
-<div class="preview-panel" id="preview-panel">
-    <div class="preview-header">
-        <div><i class="fas fa-eye" style="color:var(--primary);"></i> תצוגה מקדימה</div>
-        <div onclick="togglePreview()" style="cursor:pointer;font-size:20px;color:#ff5555;">✕</div>
-    </div>
-    <div class="preview-frame"><iframe id="preview"></iframe></div>
 </div>
 
 <!-- ═══ AI PANEL (RIGHT) ═══ -->
@@ -652,6 +721,7 @@
 let files = [], projects = [];
 let currentFileIndex = -1;
 let isPreviewOpen = false, isAIPanelOpen = false, isFilesSidebarOpen = false;
+let currentPreviewDevice = 'desktop';
 let pendingAIChange = null;
 let _fb = null;        // Firebase helpers
 let _auth = null;      // Firebase auth instance
@@ -1215,10 +1285,22 @@ function togglePreview() {
     isPreviewOpen = !isPreviewOpen;
     const panel = document.getElementById('preview-panel');
     const btn   = document.getElementById('preview-btn');
+    const main  = document.querySelector('.main-container');
     panel.classList.toggle('active', isPreviewOpen);
+    main.classList.toggle('preview-open', isPreviewOpen);
     btn.style.background = isPreviewOpen ? 'var(--primary)' : '';
     btn.style.color = isPreviewOpen ? '#000' : '';
     if (isPreviewOpen) livePreview();
+}
+
+function setPreviewDevice(device) {
+    currentPreviewDevice = device;
+    const frame = document.getElementById('preview-frame');
+    frame.classList.remove('device-desktop', 'device-tablet', 'device-phone');
+    frame.classList.add(`device-${device}`);
+    document.querySelectorAll('.preview-device-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.device === device);
+    });
 }
 
 /* ═══════════════════════════════════════════════
