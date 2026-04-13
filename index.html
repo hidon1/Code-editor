@@ -96,6 +96,7 @@
         .tabs {
             display: flex; background: var(--surface2);
             border-bottom: 1px solid var(--border); min-height: 44px; overflow-x: auto; flex-shrink: 0;
+            align-items: stretch;
         }
         .editor-toolbar {
             display: flex;
@@ -142,6 +143,17 @@
         .tab.active::after { content:''; position:absolute; bottom:0; left:0; right:0; height:2px; background:var(--primary); }
         .tab-close { width:17px; height:17px; display:flex; align-items:center; justify-content:center; border-radius:50%; font-size:11px; }
         .tab-close:hover { background:#ff4444; color:white; }
+        .tab-add-btn {
+            min-width: 40px;
+            border: none;
+            border-right: 1px solid var(--border);
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 15px;
+            transition: all 0.2s;
+        }
+        .tab-add-btn:hover { background: var(--surface); color: var(--primary); }
         .editor-wrapper { flex:1; position:relative; min-height:0; background:#1e1e2e; }
         [data-theme="light"] .editor-wrapper { background:#f8f9fc; }
         #code-editor {
@@ -154,6 +166,11 @@
             height:30px; background:var(--surface2); border-top:1px solid var(--border);
             display:flex; align-items:center; font-size:12px; color:var(--text-muted);
             padding:0 16px; gap:20px; flex-shrink:0;
+        }
+        .ai-fab {
+            width: 28px; height: 28px; border-radius: 50%;
+            border: none; display: inline-flex; align-items: center; justify-content: center;
+            background: #10b981; color: #fff; cursor: pointer;
         }
 
         /* ── FILES SIDEBAR ── */
@@ -246,23 +263,23 @@
             border-radius: 10px;
             background: #0f1119;
             display: flex;
-            align-items: flex-start;
+            align-items: center;
             justify-content: center;
             overflow: auto;
             padding: 18px;
         }
         .preview-frame {
-            width: min(100%, 1200px);
-            min-height: 100%;
+            width: min(100%, 1180px);
+            height: min(100%, 700px);
             border-radius: 14px;
             overflow: hidden;
             background: white;
             box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-            transition: width 0.25s ease;
+            transition: width 0.25s ease, height 0.25s ease;
         }
-        .preview-frame.device-tablet { width: min(100%, 820px); }
-        .preview-frame.device-phone { width: min(100%, 390px); }
-        #preview { width: 100%; min-height: 100%; border: none; height: 100%; }
+        .preview-frame.device-tablet { width: min(100%, 820px); height: min(100%, 1024px); }
+        .preview-frame.device-phone { width: min(100%, 390px); height: min(100%, 844px); }
+        #preview { width: 100%; border: none; height: 100%; display: block; }
 
         /* ── AI PANEL (RIGHT) ── */
         .ai-panel {
@@ -406,10 +423,6 @@
         <div class="logo"><i class="fas fa-cube"></i><span>CodeSphere</span></div>
     </div>
     <div class="nav-actions">
-        <button onclick="toggleFilesSidebar()" class="btn-icon" title="קבצים ופרויקטים" style="color:#f59e0b;">
-            <i class="fas fa-folder-open"></i>
-        </button>
-        <button onclick="newFile()" class="btn"><i class="fas fa-plus"></i><span>קובץ חדש</span></button>
         <button onclick="triggerFileUpload()" class="btn"><i class="fas fa-upload"></i><span>העלה</span></button>
         <button onclick="quickSave()" class="btn-icon" title="שמור מהיר (Ctrl+Q)" style="background:#22c55e;color:#000;">
             <i class="fas fa-save"></i>
@@ -439,9 +452,6 @@
         <button onclick="togglePreview()" class="btn" id="preview-btn">
             <i class="fas fa-eye"></i><span>תצוגה מקדימה</span>
         </button>
-        <button onclick="toggleAIPanel()" class="btn" style="background:#10b981;color:white;">
-            <i class="fas fa-robot"></i><span>AI בונה אתרים</span>
-        </button>
         <!-- User chip (shown when logged in) -->
         <div class="user-chip" id="user-chip" style="display:none;" onclick="toggleSidebarMenu()">
             <div class="user-avatar" id="header-avatar">?</div>
@@ -469,6 +479,9 @@
             <div>שורות: <span id="line-count">1</span></div>
             <div>תווים: <span id="char-count">0</span></div>
             <div id="current-file-name">index.html</div>
+            <button class="ai-fab" onclick="toggleAIPanel()" title="AI בונה אתרים">
+                <i class="fas fa-robot"></i>
+            </button>
             <div style="margin-right:auto;color:var(--primary);cursor:pointer;" onclick="formatCode()">
                 <i class="fas fa-magic"></i> יפה
             </div>
@@ -1429,7 +1442,7 @@ function renderTabs() {
             <i class="fas fa-file-code" style="font-size:10px;"></i>
             <span>${f.name}</span>
             <span class="tab-close" onclick="event.stopImmediatePropagation();closeTab(${i});">✕</span>
-        </div>`).join('');
+        </div>`).join('') + `<button class="tab-add-btn" onclick="newFile()" title="כרטיסייה חדשה"><i class="fas fa-plus"></i></button>`;
 }
 
 /* ═══════════════════════════════════════════════
@@ -1717,6 +1730,14 @@ function init() {
             document.getElementById('files-sidebar').classList.remove('open');
             isFilesSidebarOpen = false;
             // Don't close auth modal on Escape — user must press "לא עכשיו"
+        }
+    });
+    document.addEventListener('click', e => {
+        const menu = document.getElementById('sidebar-menu');
+        const clickedInMenu = menu.contains(e.target);
+        const clickedMenuToggle = e.target.closest('.hamburger-btn') || e.target.closest('#user-chip');
+        if (menu.classList.contains('open') && !clickedInMenu && !clickedMenuToggle) {
+            menu.classList.remove('open');
         }
     });
 
