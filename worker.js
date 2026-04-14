@@ -105,11 +105,14 @@ function buildMessages(userContent, history = []) {
   ];
 }
 
-async function callXAI(env, messages) {
-  // המפתח מגיע רק מסודיות Cloudflare
-  const apiKey = env.XAI_API_KEY || "";
+async function callXAI(env, request, messages) {
+  // מפתח יכול להגיע מסודיות Cloudflare או מכותרת x-xai-api-key
+  const apiKey =
+    env.XAI_API_KEY ||
+    request.headers.get("x-xai-api-key") ||
+    "";
   if (!apiKey) {
-    throw new Error("Missing XAI_API_KEY secret in Cloudflare Worker settings");
+    throw new Error("Missing xAI API key (set XAI_API_KEY secret or send x-xai-api-key header)");
   }
 
   const res = await fetch(XAI_URL, {
@@ -161,7 +164,7 @@ async function handleGenerate(request, env) {
   if (!body.prompt?.trim()) return apiError('"prompt" is required', 400);
 
   const messages = buildMessages(body.prompt.trim(), []);
-  const result = await callXAI(env, messages);
+  const result = await callXAI(env, request, messages);
   return apiOk(result);
 }
 
@@ -180,7 +183,7 @@ async function handleImprove(request, env) {
 
   const userMsg = `הקוד הנוכחי:\n\n${filesBlock}\n\n---\nהוראה: ${body.instruction.trim()}`;
   const messages = buildMessages(userMsg, body.history ?? []);
-  const result = await callXAI(env, messages);
+  const result = await callXAI(env, request, messages);
   return apiOk(result);
 }
 
@@ -195,7 +198,7 @@ async function handleChat(request, env) {
 
   const userMsg = `${context}${body.message.trim()}`;
   const messages = buildMessages(userMsg, body.history ?? []);
-  const result = await callXAI(env, messages);
+  const result = await callXAI(env, request, messages);
   return apiOk(result);
 }
 
@@ -212,7 +215,7 @@ export default {
     const cors = {
       "Access-Control-Allow-Origin": origin,
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization, x-xai-api-key",
       "Access-Control-Max-Age": "86400",
     };
 
