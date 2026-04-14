@@ -961,6 +961,14 @@ async function callAIWorker(route, payload) {
 
     const data = await response.json().catch(() => ({}));
     if (!response.ok || data?.ok === false) {
+        if (response.status === 405) {
+            const endpointHost = new URL(endpoint, window.location.origin).hostname;
+            const isWorkerHost = /workers\.dev$/i.test(endpointHost);
+            const hint = isWorkerHost
+                ? 'נתיב ה-API לא תומך בשיטה POST. בדוק שה-Worker מכיל את הנתיבים /api/chat או /api/generate.'
+                : 'נראה שהבקשה נשלחה לשרת שלא מפעיל את ה-Worker. הגדר כתובת Worker מלאה בהגדרות AI.';
+            throw new Error(`${data?.error || `AI API error (${response.status})`}. ${hint}`);
+        }
         throw new Error(data?.error || `AI API error (${response.status})`);
     }
     return data;
