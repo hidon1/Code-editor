@@ -201,7 +201,7 @@
         .files-sidebar {
             position: fixed; top: 56px; right: -330px; width: 330px;
             height: calc(100vh - 56px); background: var(--surface);
-            border-left: 1px solid var(--border); box-shadow: -16px 0 50px rgba(0,0,0,0.65);
+            border-left: 1px solid var(--border); box-shadow: none;
             transition: right 0.38s cubic-bezier(0.32,0.72,0,1);
             display: flex; flex-direction: column; z-index: 400;
         }
@@ -296,7 +296,7 @@
         .ai-panel {
             position: fixed; top: 56px; bottom: 0; right: -490px; width: 490px;
             background: var(--surface); border-left: 1px solid var(--border);
-            box-shadow: -16px 0 50px rgba(0,0,0,0.65);
+            box-shadow: none;
             transition: right 0.45s cubic-bezier(0.32,0.72,0,1);
             display: flex; flex-direction: column; z-index: 200;
         }
@@ -317,7 +317,7 @@
         /* HAMBURGER MENU */
         .sidebar-menu {
             position: fixed; top: 0; right: -450px; width: 450px; height: 100vh;
-            background: var(--surface); box-shadow: -20px 0 60px rgba(0,0,0,0.75);
+            background: var(--surface); box-shadow: none;
             z-index: 9999; transition: right 0.45s cubic-bezier(0.32,0.72,0,1); overflow-y: auto;
         }
         .sidebar-menu.open { right: 0; }
@@ -876,7 +876,11 @@ function getBaseUrl() {
     return 'https://code-editor-4c979.web.app/';
 }
 
-const AI_API_BASE = localStorage.getItem('codesphere_ai_api_base') || 'https://YOUR-WORKER.workers.dev';
+function resolveAIBase() {
+    const raw = String(localStorage.getItem('codesphere_ai_api_base') || '').trim();
+    if (!raw || raw.includes('YOUR-WORKER')) return '';
+    return raw.replace(/\/+$/, '');
+}
 
 function normalizeAIFile(file) {
     return {
@@ -907,11 +911,10 @@ function upsertFilesFromAI(nextFiles) {
 }
 
 async function callAIWorker(route, payload) {
-    if (!AI_API_BASE || AI_API_BASE.includes('YOUR-WORKER')) {
-        throw new Error('הגדר כתובת Worker תקינה ב-localStorage תחת codesphere_ai_api_base');
-    }
+    const aiBase = resolveAIBase();
+    const endpoint = aiBase ? `${aiBase}${route}` : route;
 
-    const response = await fetch(`${AI_API_BASE}${route}`, {
+    const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
