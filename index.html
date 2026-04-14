@@ -799,6 +799,7 @@ let currentFileIndex = -1;
 let isPreviewOpen = false, isAIPanelOpen = false, isFilesSidebarOpen = false;
 let currentPreviewDevice = 'desktop';
 let pendingAIChange = null;
+let aiConversationHistory = [];
 let _fb = null;        // Firebase helpers
 let _auth = null;      // Firebase auth instance
 let currentUser = null;
@@ -873,6 +874,54 @@ const FIREBASE_CONFIG = {
 function getBaseUrl() {
     // Always use the real Firebase Hosting URL so shared links work everywhere
     return 'https://code-editor-4c979.web.app/';
+}
+
+const AI_API_BASE = localStorage.getItem('codesphere_ai_api_base') || 'https://YOUR-WORKER.workers.dev';
+
+function normalizeAIFile(file) {
+    return {
+        id: Date.now() + Math.floor(Math.random() * 100000),
+        name: String(file?.name || 'index.html'),
+        content: String(file?.content || ''),
+    };
+}
+
+function upsertFilesFromAI(nextFiles) {
+    if (!Array.isArray(nextFiles) || nextFiles.length === 0) return;
+    nextFiles.forEach(nextFile => {
+        const name = String(nextFile?.name || '').toLowerCase();
+        const idx = files.findIndex(f => String(f.name || '').toLowerCase() === name);
+        if (idx >= 0) {
+            files[idx].content = String(nextFile?.content || '');
+            files[idx].name = String(nextFile?.name || files[idx].name);
+        } else {
+            files.push(normalizeAIFile(nextFile));
+        }
+    });
+    renderProjectsAndFiles();
+    renderTabs();
+
+    if (currentFileIndex < 0) currentFileIndex = 0;
+    openFile(currentFileIndex);
+    saveWorkspaceLocal();
+}
+
+async function callAIWorker(route, payload) {
+    if (!AI_API_BASE || AI_API_BASE.includes('YOUR-WORKER')) {
+        throw new Error('הגדר כתובת Worker תקינה ב-localStorage תחת codesphere_ai_api_base');
+    }
+
+    const response = await fetch(`${AI_API_BASE}${route}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data?.ok === false) {
+        throw new Error(data?.error || `AI API error (${response.status})`);
+    }
+    return data;
 }
 
 /* ═══════════════════════════════════════════════
@@ -1548,33 +1597,72 @@ function toggleAIPanel() {
     document.getElementById('ai-panel').classList.toggle('active', isAIPanelOpen);
 }
 
-function handleAIRequest() {
+function addAIMessage(type, text) {
+    const msg = document.createElement('div');
+    msg.className = `ai-message ${type === 'user' ? 'ai-user' : 'ai-bot'}`;
+    msg.textContent = text;
+    aiMessages.appendChild(msg);
+    aiMessages.scrollTop = aiMessages.scrollHeight;
+}
+
+async function handleAIRequest() {
     const input = document.getElementById('ai-input');
     const prompt = input.value.trim();
-    if (!prompt || currentFileIndex < 0) return;
-    const userMsg = document.createElement('div');
-    userMsg.className = 'ai-message ai-user';
-    userMsg.textContent = prompt;
-    aiMessages.appendChild(userMsg);
-    aiMessages.scrollTop = aiMessages.scrollHeight;
+    if (!prompt) return;
+
+    addAIMessage('user', prompt);
     input.value = '';
-    setTimeout(() => {
-        const botMsg = document.createElement('div');
-        botMsg.className = 'ai-message ai-bot';
-        botMsg.innerHTML = `הבנתי. האם לאשר את השינוי?<br><strong>${prompt}</strong>`;
-        aiMessages.appendChild(botMsg);
-        aiMessages.scrollTop = aiMessages.scrollHeight;
-        pendingAIChange = { prompt, newCode: editor.value + `\n\n<!-- AI: ${prompt} -->` };
-        document.getElementById('ai-suggestion-text').innerHTML = `<strong>בקשה:</strong><br>${prompt}`;
+
+    const loading = document.createElement('div');
+    loading.className = 'ai-message ai-bot';
+    loading.textContent = 'מעבד בקשה...';
+    aiMessages.appendChild(loading);
+    aiMessages.scrollTop = aiMessages.scrollHeight;
+
+    try {
+        const hasFiles = Array.isArray(files) && files.length > 0;
+        const route = hasFiles ? '/api/chat' : '/api/generate';
+        const payload = hasFiles
+            ? {
+                message: prompt,
+                files: files.map(f => ({ name: f.name, content: f.content })),
+                history: aiConversationHistory.slice(-12),
+                projectContext: {
+                    projectNames: projects.map(p => p.name),
+                    fileNames: files.map(f => f.name)
+                }
+            }
+            : {
+                prompt,
+                projectContext: {}
+            };
+
+        const result = await callAIWorker(route, payload);
+        const description = result.description || 'ה-AI יצר עדכון קבצים חדש.';
+
+        pendingAIChange = {
+            prompt,
+            description,
+            files: result.files || []
+        };
+
+        aiConversationHistory.push({ role: 'user', content: prompt });
+        aiConversationHistory.push({ role: 'assistant', content: description });
+
+        loading.textContent = `${description} אשר כדי להחיל את השינוי.`;
+        document.getElementById('ai-suggestion-text').innerHTML = `<strong>בקשה:</strong><br>${prompt}<br><br><strong>סיכום:</strong><br>${description}`;
         document.getElementById('confirm-modal').style.display = 'flex';
-    }, 700);
+    } catch (error) {
+        loading.textContent = `שגיאה: ${error?.message || 'נכשל בעיבוד הבקשה'}`;
+        showToast('ה-AI נכשל, בדוק כתובת Worker או מפתח API', 'triangle-exclamation', '#ff5555');
+    }
 }
 
 function approveAIChange() {
-    if (pendingAIChange && currentFileIndex >= 0) {
-        editor.value = pendingAIChange.newCode;
-        files[currentFileIndex].content = editor.value;
-        livePreview(); showToast("הקוד עודכן");
+    if (pendingAIChange && Array.isArray(pendingAIChange.files) && pendingAIChange.files.length) {
+        upsertFilesFromAI(pendingAIChange.files);
+        livePreview();
+        showToast('קבצי הפרויקט עודכנו מה-AI');
     }
     document.getElementById('confirm-modal').style.display = 'none';
     pendingAIChange = null;
