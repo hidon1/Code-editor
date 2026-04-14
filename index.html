@@ -882,7 +882,9 @@ function getBaseUrl() {
 function resolveAIBase() {
     const raw = String(localStorage.getItem('codesphere_ai_api_base') || '').trim();
     if (!raw || raw.includes('YOUR-WORKER')) return '';
-    return raw.replace(/\/+$/, '');
+    return raw
+        .replace(/\/+(api\/(chat|generate|improve|health))\/?$/i, '')
+        .replace(/\/+$/, '');
 }
 
 function resolveAIKey() {
@@ -938,6 +940,10 @@ function upsertFilesFromAI(nextFiles) {
 
 async function callAIWorker(route, payload) {
     const aiBase = resolveAIBase();
+    const isFirebaseHosting = /(?:^|\.)web\.app$|(?:^|\.)firebaseapp\.com$/i.test(window.location.hostname);
+    if (!aiBase && isFirebaseHosting) {
+        throw new Error('הגדר כתובת Worker מלאה בהגדרות AI (למשל https://your-worker.workers.dev)');
+    }
     const endpoint = aiBase ? `${aiBase}${route}` : route;
     const aiKey = resolveAIKey();
     const headers = { 'Content-Type': 'application/json' };
