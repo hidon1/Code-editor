@@ -928,32 +928,6 @@ function getBaseUrl() {
                     });
                     return ref.id;
                 }
-            },
-            /* Upload HTML to Firebase Storage via REST and return public download URL */
-            async uploadPublicHtml(storagePath, htmlContent) {
-                const token   = await _auth.currentUser.getIdToken();
-                const bucket  = 'code-editor-4c979.firebasestorage.app';
-                const encoded = encodeURIComponent(storagePath);
-                const res = await fetch(
-                    `https://firebasestorage.googleapis.com/v0/b/${bucket}/o?uploadType=media&name=${encoded}`,
-                    {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'text/html; charset=utf-8'
-                        },
-                        body: htmlContent
-                    }
-                );
-                if (!res.ok) {
-                    const err = await res.json().catch(() => ({}));
-                    const msg = err?.error?.message || res.status;
-                    if (res.status === 403) throw new Error('אין הרשאה לאחסון. יש לפתוח Firebase Storage בקונסולה ולהגדיר חוקי גישה.');
-                    if (res.status === 404) throw new Error('Firebase Storage לא הופעל עדיין. יש לפתוח אותו בקונסולה.');
-                    throw new Error(`שגיאת אחסון (${msg})`);
-                }
-                const data = await res.json();
-                return `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encoded}?alt=media&token=${data.downloadTokens}`;
             }
         };
 
@@ -1398,15 +1372,9 @@ async function createPublicLink() {
             renderProjectsAndFiles();
         }
 
-        // Upload bundled HTML to Storage → direct standalone URL
-        const bundled = bundleToHtml([{ name: f.name, content: f.content }]);
-        const url = await _fb.uploadPublicHtml(
-            `shares/${currentUser.uid}/${cloudId}/index.html`,
-            bundled
-        );
-
+        const url = `${getBaseUrl()}viewer.html?id=${cloudId}`;
         _shareUrl = url;
-        showToast(isNew ? "אתר נוצר!" : "האתר עודכן!", "check-circle", "#22c55e");
+        showToast(isNew ? "קישור נוצר!" : "הקובץ עודכן!", "check-circle", "#22c55e");
         openShareLinkModal(url);
     } catch(e) { showToast("שגיאה: " + e.message, "triangle-exclamation", "#ff5555"); }
 }
@@ -1440,13 +1408,7 @@ async function shareProjectToCloud() {
             renderProjectsAndFiles();
         }
 
-        // Bundle all project files into a single self-contained HTML and upload to Storage
-        const bundled = bundleToHtml(projectFiles.map(f => ({ name: f.name, content: f.content })));
-        const url = await _fb.uploadPublicHtml(
-            `shares/${currentUser.uid}/${cloudId}/index.html`,
-            bundled
-        );
-
+        const url = `${getBaseUrl()}viewer.html?id=${cloudId}`;
         _shareUrl = url;
         document.getElementById('share-result-url').textContent = url;
         document.getElementById('share-result-link').classList.add('show');
