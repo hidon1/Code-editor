@@ -806,6 +806,10 @@ let aiConversationHistory = [];
 let _fb = null;        // Firebase helpers
 let _auth = null;      // Firebase auth instance
 let currentUser = null;
+let workspaceUnsubscribe = null;
+let cloudSaveTimer = null;
+let isApplyingRemoteWorkspace = false;
+let lastWorkspaceSignature = '';
 let _shareUrl = '';
 let _authMode = 'login'; // 'login' | 'register'
 
@@ -935,7 +939,7 @@ function upsertFilesFromAI(nextFiles) {
 
     if (currentFileIndex < 0) currentFileIndex = 0;
     openFile(currentFileIndex);
-    saveWorkspaceLocal();
+    saveToStorage();
 }
 
 async function callAIWorker(route, payload) {
@@ -972,7 +976,7 @@ async function callAIWorker(route, payload) {
 
         const [
             { initializeApp },
-            { getFirestore, collection, doc, setDoc, getDoc, addDoc, serverTimestamp },
+            { getFirestore, collection, doc, setDoc, getDoc, addDoc, onSnapshot, serverTimestamp },
             { getAuth, onAuthStateChanged,
               signInWithEmailAndPassword, createUserWithEmailAndPassword,
               updateProfile, signOut, GoogleAuthProvider, signInWithPopup }
@@ -998,6 +1002,13 @@ async function callAIWorker(route, payload) {
             async loadWorkspace(uid) {
                 const snap = await getDoc(doc(db, 'codesphere_workspaces', uid));
                 return snap.exists() ? snap.data() : null;
+            },
+            subscribeWorkspace(uid, onData, onError) {
+                return onSnapshot(
+                    doc(db, 'codesphere_workspaces', uid),
+                    (snap) => onData(snap.exists() ? snap.data() : null),
+                    onError
+                );
             },
             /* Create new share OR update existing one — returns the permanent cloudId */
             async upsertShare(cloudId, shareData) {
@@ -1029,9 +1040,20 @@ async function callAIWorker(route, payload) {
         };
 
         /* ── Auth state listener ── */
-        onAuthStateChanged(_auth, user => {
+        onAuthStateChanged(_auth, async user => {
             currentUser = user;
             updateAuthUI(user);
+            if (user) {
+                try {
+                    await startWorkspaceSync(user.uid);
+                } catch (syncError) {
+                    console.warn('Workspace sync failed:', syncError?.message || syncError);
+                    showToast("שגיאה בסנכרון הענן", "triangle-exclamation", "#ff5555");
+                }
+            } else if (workspaceUnsubscribe) {
+                workspaceUnsubscribe();
+                workspaceUnsubscribe = null;
+            }
         });
 
         dot.className = 'ok';
@@ -1320,6 +1342,92 @@ function saveToStorage() {
         localStorage.setItem('codesphere_files_v4', JSON.stringify(files));
         localStorage.setItem('codesphere_projects_v1', JSON.stringify(projects));
     } catch(e) {}
+    if (!isApplyingRemoteWorkspace) scheduleCloudAutoSave();
+}
+
+function scheduleCloudAutoSave() {
+    if (!currentUser || !_fb) return;
+    clearTimeout(cloudSaveTimer);
+    cloudSaveTimer = setTimeout(() => {
+        saveToFirebase({ silent: true, auto: true });
+    }, 700);
+}
+
+function getWorkspaceSignature(workspaceData) {
+    const normalized = {
+        files: (workspaceData?.files || []).map(f => ({
+            id: f.id || '',
+            name: f.name || '',
+            content: f.content || ''
+        })),
+        projects: Array.isArray(workspaceData?.projects) ? workspaceData.projects : []
+    };
+    return JSON.stringify(normalized);
+}
+
+function applyWorkspaceData(workspaceData) {
+    const nextSignature = getWorkspaceSignature(workspaceData);
+    if (nextSignature === lastWorkspaceSignature) return;
+    isApplyingRemoteWorkspace = true;
+    try {
+        files = (workspaceData?.files || []).map((f, idx) => ({
+            id: f.id || (Date.now() + idx),
+            name: f.name || `file-${idx + 1}.txt`,
+            content: f.content || ''
+        }));
+        projects = Array.isArray(workspaceData?.projects) ? workspaceData.projects : [];
+
+        if (files.length === 0) {
+            files = [{ id: 1, name: 'index.html', content: '' }];
+        }
+
+        currentFileIndex = files.length > 0 ? 0 : -1;
+        if (files.length > 0) {
+            editor.value = files[0].content;
+            setEditorLanguageByFilename(files[0].name);
+            document.getElementById('current-file-name').textContent = files[0].name;
+        } else {
+            editor.value = '';
+            setEditorLanguageByFilename('');
+            document.getElementById('current-file-name').textContent = 'אין קבצים';
+        }
+
+        renderProjectsAndFiles();
+        renderTabs();
+        updateStats();
+        saveToStorage();
+        lastWorkspaceSignature = nextSignature;
+    } finally {
+        isApplyingRemoteWorkspace = false;
+    }
+}
+
+async function startWorkspaceSync(uid) {
+    if (!_fb) return;
+
+    if (workspaceUnsubscribe) {
+        workspaceUnsubscribe();
+        workspaceUnsubscribe = null;
+    }
+
+    const cloudWorkspace = await _fb.loadWorkspace(uid);
+    if (cloudWorkspace) {
+        applyWorkspaceData(cloudWorkspace);
+        showToast("הסביבה נטענה אוטומטית מהענן", "cloud-arrow-down", "#22c55e");
+    } else if (files.length > 0 || projects.length > 0) {
+        await _fb.saveWorkspace(uid, { files, projects });
+        showToast("הועלה גיבוי ראשון לענן", "cloud-arrow-up", "#22c55e");
+    }
+
+    workspaceUnsubscribe = _fb.subscribeWorkspace(uid, (ws) => {
+        if (!ws || isApplyingRemoteWorkspace) return;
+        const remoteSignature = getWorkspaceSignature(ws);
+        if (remoteSignature === lastWorkspaceSignature) return;
+        applyWorkspaceData(ws);
+        showToast("בוצע סנכרון מהענן", "cloud", "#00d4ff");
+    }, (err) => {
+        console.warn('Workspace realtime sync failed:', err?.message || err);
+    });
 }
 
 function toggleTheme() {
@@ -1332,19 +1440,21 @@ function toggleTheme() {
 /* ═══════════════════════════════════════════════
    CLOUD SAVE / LOAD (require auth)
 ═══════════════════════════════════════════════ */
-async function saveToFirebase() {
+async function saveToFirebase(options = {}) {
+    const { silent = false, auto = false } = options;
     if (!currentUser) { showAuthModal(); showToast("יש להתחבר לשמירה בענן", "lock", "#ff9800"); return; }
     if (!_fb) { showToast("Firebase מתחבר...", "circle-notch", "#ff9800"); return; }
     const dot = document.getElementById('cloud-status-dot');
     dot.className = 'saving';
     try {
-        showToast("שומר בענן...", "cloud-arrow-up", "#ff9800");
+        if (!silent) showToast("שומר בענן...", "cloud-arrow-up", "#ff9800");
         await _fb.saveWorkspace(currentUser.uid, { files, projects });
+        lastWorkspaceSignature = getWorkspaceSignature({ files, projects });
         dot.className = 'ok';
-        showToast("נשמר בענן!", "cloud-arrow-up", "#22c55e");
+        if (!silent) showToast("נשמר בענן!", "cloud-arrow-up", "#22c55e");
     } catch(e) {
         dot.className = 'error';
-        showToast("שגיאה: " + e.message, "triangle-exclamation", "#ff5555");
+        if (!auto || !silent) showToast("שגיאה: " + e.message, "triangle-exclamation", "#ff5555");
     }
 }
 
@@ -1380,12 +1490,7 @@ async function loadCloudWorkspace() {
     try {
         const ws = await _fb.loadWorkspace(currentUser.uid);
         if (!ws) return;
-        files    = (ws.files    || []).map(f => ({ id: f.id || Date.now(), name: f.name, content: f.content || '' }));
-        projects = ws.projects  || [];
-        currentFileIndex = files.length > 0 ? 0 : -1;
-        if (files.length > 0) { editor.value = files[0].content; setEditorLanguageByFilename(files[0].name); document.getElementById('current-file-name').textContent = files[0].name; }
-        else { editor.value = ''; setEditorLanguageByFilename(''); }
-        renderProjectsAndFiles(); renderTabs(); updateStats(); saveToStorage();
+        applyWorkspaceData(ws);
         closeCloudModal();
         showToast("הפרויקטים נטענו מהענן!", "check-circle", "#22c55e");
     } catch(e) { showToast("שגיאה: " + e.message, "triangle-exclamation", "#ff5555"); }
