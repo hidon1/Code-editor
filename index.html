@@ -888,19 +888,16 @@ function getBaseUrl() {
             { getFirestore, collection, doc, setDoc, getDoc, addDoc, serverTimestamp },
             { getAuth, onAuthStateChanged,
               signInWithEmailAndPassword, createUserWithEmailAndPassword,
-              updateProfile, signOut, GoogleAuthProvider, signInWithPopup },
-            { getStorage, ref: storageRef, uploadString, getDownloadURL }
+              updateProfile, signOut, GoogleAuthProvider, signInWithPopup }
         ] = await Promise.all([
             import('https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js'),
             import('https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js'),
-            import('https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js'),
-            import('https://www.gstatic.com/firebasejs/12.12.0/firebase-storage.js')
+            import('https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js')
         ]);
 
-        const app     = initializeApp(FIREBASE_CONFIG);
-        const db      = getFirestore(app);
-        const storage = getStorage(app);
-        _auth         = getAuth(app);
+        const app = initializeApp(FIREBASE_CONFIG);
+        const db  = getFirestore(app);
+        _auth     = getAuth(app);
 
         /* ── Firestore helpers ── */
         _fb = {
@@ -932,11 +929,31 @@ function getBaseUrl() {
                     return ref.id;
                 }
             },
-            /* Upload bundled HTML to Firebase Storage and return public download URL */
-            async uploadPublicHtml(path, htmlContent) {
-                const fileRef = storageRef(storage, path);
-                await uploadString(fileRef, htmlContent, 'raw', { contentType: 'text/html; charset=utf-8' });
-                return await getDownloadURL(fileRef);
+            /* Upload HTML to Firebase Storage via REST and return public download URL */
+            async uploadPublicHtml(storagePath, htmlContent) {
+                const token   = await _auth.currentUser.getIdToken();
+                const bucket  = 'code-editor-4c979.firebasestorage.app';
+                const encoded = encodeURIComponent(storagePath);
+                const res = await fetch(
+                    `https://firebasestorage.googleapis.com/v0/b/${bucket}/o?uploadType=media&name=${encoded}`,
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'text/html; charset=utf-8'
+                        },
+                        body: htmlContent
+                    }
+                );
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({}));
+                    const msg = err?.error?.message || res.status;
+                    if (res.status === 403) throw new Error('אין הרשאה לאחסון. יש לפתוח Firebase Storage בקונסולה ולהגדיר חוקי גישה.');
+                    if (res.status === 404) throw new Error('Firebase Storage לא הופעל עדיין. יש לפתוח אותו בקונסולה.');
+                    throw new Error(`שגיאת אחסון (${msg})`);
+                }
+                const data = await res.json();
+                return `https://firebasestorage.googleapis.com/v0/b/${bucket}/o/${encoded}?alt=media&token=${data.downloadTokens}`;
             }
         };
 
