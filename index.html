@@ -615,6 +615,9 @@
     <div class="menu-item" onclick="toggleFilesSidebar();toggleSidebarMenu()">
         <i class="fas fa-folder-open" style="color:#f59e0b;"></i><span>ניהול פרויקטים וקבצים</span>
     </div>
+    <div class="menu-item" onclick="openAISettings();toggleSidebarMenu()">
+        <i class="fas fa-key" style="color:#10b981;"></i><span>הגדרות AI (Worker/API Key)</span>
+    </div>
     <div class="menu-item" onclick="requireAuthAction(openShareProjectModal);toggleSidebarMenu()">
         <i class="fas fa-share-alt" style="color:#7b5eff;"></i><span>שתף פרויקט בענן</span>
     </div>
@@ -882,6 +885,29 @@ function resolveAIBase() {
     return raw.replace(/\/+$/, '');
 }
 
+function resolveAIKey() {
+    return String(localStorage.getItem('codesphere_xai_api_key') || '').trim();
+}
+
+function openAISettings() {
+    const currentBase = String(localStorage.getItem('codesphere_ai_api_base') || '').trim();
+    const currentKey = resolveAIKey();
+    const nextBase = prompt(
+        'כתובת בסיס של ה-Worker (לדוגמה https://your-worker.your-subdomain.workers.dev). השאר ריק לשימוש באותו דומיין:',
+        currentBase
+    );
+    if (nextBase === null) return;
+    localStorage.setItem('codesphere_ai_api_base', nextBase.trim());
+
+    const nextKey = prompt(
+        'מפתח xAI אופציונלי לשליחה מהדפדפן (נשמר מקומית בדפדפן). מומלץ להשאיר ריק ולהגדיר XAI_API_KEY ב-Cloudflare Worker:',
+        currentKey
+    );
+    if (nextKey === null) return;
+    localStorage.setItem('codesphere_xai_api_key', nextKey.trim());
+    showToast('הגדרות AI נשמרו במכשיר זה בלבד');
+}
+
 function normalizeAIFile(file) {
     return {
         id: Date.now() + Math.floor(Math.random() * 100000),
@@ -913,10 +939,13 @@ function upsertFilesFromAI(nextFiles) {
 async function callAIWorker(route, payload) {
     const aiBase = resolveAIBase();
     const endpoint = aiBase ? `${aiBase}${route}` : route;
+    const aiKey = resolveAIKey();
+    const headers = { 'Content-Type': 'application/json' };
+    if (aiKey) headers['x-xai-api-key'] = aiKey;
 
     const response = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(payload),
     });
 
