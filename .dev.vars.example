@@ -1,0 +1,5 @@
+# Cloudflare Worker local secrets example
+# Copy to .dev.vars (do not commit .dev.vars) and fill values.
+XAI_API_KEY=
+ALLOWED_ORIGIN=https://code-editor-4c979.web.app
+XAI_MODEL=grok-3-mini-fast
