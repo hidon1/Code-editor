@@ -1,23 +1,25 @@
 /**
  * CodeSphere AI Worker — Cloudflare Worker
- * Secure xAI proxy for CodeSphere editor
+ * Powered by xAI Grok | מתמחה בבניית אתרים
  *
  * Routes:
- *   GET  /api/health
- *   POST /api/generate  { prompt, projectContext? }
- *   POST /api/improve   { files, instruction, history?, projectContext? }
- *   POST /api/chat      { message, files?, history?, projectContext? }
+ *   POST /api/generate  — צור אתר מפרומפט
+ *   POST /api/improve   — שפר / תקן קוד קיים
+ *   POST /api/chat      — שיחה המשכית עם היסטוריה
+ *   GET  /api/health    — בדיקת תקינות
  *
- * Required env vars:
- *   XAI_API_KEY
- * Optional env vars:
- *   ALLOWED_ORIGIN (default: *)
- *   XAI_MODEL (default: grok-3-mini-fast)
+ * Environment variable (Cloudflare dashboard → Workers → Settings → Variables):
+ *   XAI_API_KEY   — מפתח xAI שלך (https://console.x.ai)
+ *   ALLOWED_ORIGIN — אופציונלי, לדוגמה: https://code-editor-4c979.web.app
+ *   XAI_MODEL      — אופציונלי, ברירת מחדל: grok-3-mini-fast
  */
 
 const XAI_URL = 'https://api.x.ai/v1/chat/completions';
+const MODEL = 'grok-3-mini-fast';
 const MAX_TOKENS = 16000;
 const MAX_HISTORY = 12;
+
+// ─── System Prompt ────────────────────────────────────────────────────────────
 
 const SYSTEM_PROMPT = `
 אתה מפתח אתרים AI מומחה בתוך עורך הקוד CodeSphere.
@@ -49,10 +51,19 @@ const SYSTEM_PROMPT = `
 • כתוב קוד ייצורי מלא — לא סקיצות
 • עיצוב מודרני: CSS variables, grid, flexbox, animations, transitions
 • RTL מלא עם dir="rtl" ו-font-family: 'Heebo', 'Assistant', sans-serif (Google Fonts)
+• גלריות, כרטיסים, Hero sections — תמיד עם hover effects ואנימציות
 • JS: Vanilla בלבד ללא frameworks (אלא אם התבקש)
 • תמיכה מלאה במובייל — responsive design
 • אל תוסיף כפתורי הורדה
+
+═══ ספריות CDN מותרות ═══
+• Google Fonts — עברית
+• Font Awesome 6 — אייקונים
+• AOS (Animate on Scroll) — אנימציות גלילה
+• ספריות אחרות רק אם המשתמש ביקש ספציפית
 `.trim();
+
+// ─── Motzarella detection ─────────────────────────────────────────────────────
 
 function detectMotzarella(messages, projectContext = {}) {
   const allText = messages.map(m => String(m?.content || '')).join('\n').toLowerCase();
@@ -75,7 +86,9 @@ function detectMotzarella(messages, projectContext = {}) {
     : (projectContext.motzarellaBaseUrl || 'https://product-manager-a084a.web.app/index.html');
 
   const wantsCart = /סל|cart|קנייה|קניות|הוסף לסל/.test(combined);
-  return { detected, uid, baseUrl, wantsCart };
+  const wantsWidget = /widget|ווידג|iframe/.test(combined);
+
+  return { detected, uid, baseUrl, wantsCart, wantsWidget };
 }
 
 function buildMotzarellaPrompt(motz) {
@@ -116,28 +129,7 @@ ${motz.wantsCart ? `
 `.trim();
 }
 
-function buildMessages(userContent, history = [], motz = {}) {
-  const motzSection = buildMotzarellaPrompt(motz);
-  const systemFull = motzSection ? `${SYSTEM_PROMPT}\n\n${motzSection}` : SYSTEM_PROMPT;
-  const normalizedHistory = Array.isArray(history)
-    ? history
-        .filter(m => m && (m.role === 'assistant' || m.role === 'user') && typeof m.content === 'string')
-        .slice(-MAX_HISTORY)
-    : [];
-
-  return [
-    { role: 'system', content: systemFull },
-    ...normalizedHistory,
-    { role: 'user', content: userContent }
-  ];
-}
-
-function guessLanguage(filename = '') {
-  if (filename.endsWith('.css')) return 'css';
-  if (filename.endsWith('.js')) return 'javascript';
-  if (filename.endsWith('.html')) return 'html';
-  return 'html';
-}
+// ─── Call xAI ────────────────────────────────────────────────────────────────
 
 async function callXAI(env, messages) {
   if (!env.XAI_API_KEY) {
@@ -151,7 +143,7 @@ async function callXAI(env, messages) {
       Authorization: `Bearer ${env.XAI_API_KEY}`
     },
     body: JSON.stringify({
-      model: env.XAI_MODEL || 'grok-3-mini-fast',
+      model: env.XAI_MODEL || MODEL,
       messages,
       max_tokens: MAX_TOKENS,
       temperature: 0.25,
@@ -166,8 +158,9 @@ async function callXAI(env, messages) {
 
   const data = await res.json();
   const raw = data?.choices?.[0]?.message?.content || '';
-  let parsed;
+  const usage = data?.usage || {};
 
+  let parsed;
   try {
     parsed = JSON.parse(raw);
   } catch {
@@ -178,23 +171,50 @@ async function callXAI(env, messages) {
     throw new Error('התשובה לא מכילה קבצים. נסה שוב.');
   }
 
-  parsed.files = parsed.files.map(file => ({
-    name: String(file?.name || 'index.html'),
-    language: String(file?.language || guessLanguage(file?.name || '')),
-    content: String(file?.content || '')
+  parsed.files = parsed.files.map(f => ({
+    name: String(f?.name || 'index.html'),
+    language: String(f?.language || guessLanguage(f?.name || '')),
+    content: String(f?.content || '')
   }));
 
-  return { ...parsed, usage: data?.usage || {} };
+  return { ...parsed, usage };
 }
 
+function guessLanguage(filename = '') {
+  if (filename.endsWith('.css')) return 'css';
+  if (filename.endsWith('.js')) return 'javascript';
+  if (filename.endsWith('.html')) return 'html';
+  return 'html';
+}
+
+// ─── Build messages array ─────────────────────────────────────────────────────
+
+function buildMessages(userContent, history = [], motz = {}) {
+  const motzSection = buildMotzarellaPrompt(motz);
+  const systemFull = motzSection ? `${SYSTEM_PROMPT}\n\n${motzSection}` : SYSTEM_PROMPT;
+  const normalizedHistory = Array.isArray(history)
+    ? history
+      .filter(m => m && (m.role === 'assistant' || m.role === 'user') && typeof m.content === 'string')
+      .slice(-MAX_HISTORY)
+    : [];
+
+  return [
+    { role: 'system', content: systemFull },
+    ...normalizedHistory,
+    { role: 'user', content: userContent }
+  ];
+}
+
+// ─── Routes ──────────────────────────────────────────────────────────────────
+
 function apiOk(data) { return jsonRes({ ok: true, ...data }, 200); }
-function apiError(message, status = 400) { return jsonRes({ ok: false, error: message }, status); }
-function jsonRes(data, status, headers = {}) {
+function apiError(msg, s = 400) { return jsonRes({ ok: false, error: msg }, s); }
+function jsonRes(data, status, extraHeaders = {}) {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
       'Content-Type': 'application/json; charset=utf-8',
-      ...headers
+      ...extraHeaders
     }
   });
 }
@@ -203,51 +223,63 @@ async function parseBody(request) {
   return request.json().catch(() => ({}));
 }
 
+/** POST /api/generate { prompt, projectContext? } */
 async function handleGenerate(request, env) {
   const body = await parseBody(request);
-  if (!body.prompt || !String(body.prompt).trim()) return apiError('"prompt" נדרש');
+  if (!body.prompt?.trim()) return apiError('"prompt" נדרש');
 
   const motz = detectMotzarella([{ content: body.prompt }], body.projectContext || {});
-  const messages = buildMessages(String(body.prompt).trim(), [], motz);
+  const messages = buildMessages(body.prompt.trim(), [], motz);
   const result = await callXAI(env, messages);
   return apiOk(result);
 }
 
+/** POST /api/improve { files, instruction, history?, projectContext? } */
 async function handleImprove(request, env) {
   const body = await parseBody(request);
-  if (!Array.isArray(body.files) || body.files.length === 0) return apiError('"files" נדרש');
-  if (!body.instruction || !String(body.instruction).trim()) return apiError('"instruction" נדרש');
+  if (!Array.isArray(body.files) || !body.files.length) return apiError('"files" נדרש');
+  if (!body.instruction?.trim()) return apiError('"instruction" נדרש');
 
-  const filesBlock = body.files.map(file => `=== ${file.name} ===\n${file.content || ''}`).join('\n\n');
+  const filesBlock = body.files
+    .map(f => `=== ${f.name} ===\n${f.content || ''}`)
+    .join('\n\n');
+
   const motz = detectMotzarella(
-    [{ content: body.instruction }, ...((body.history || []).slice(-4))],
+    [{ content: body.instruction }, ...((body.history ?? []).slice(-4))],
     body.projectContext || {}
   );
 
-  const userMsg = `הקוד הנוכחי:\n\n${filesBlock}\n\n---\nהוראה: ${String(body.instruction).trim()}`;
-  const messages = buildMessages(userMsg, body.history || [], motz);
+  const userMsg = `הקוד הנוכחי:\n\n${filesBlock}\n\n---\nהוראה: ${body.instruction.trim()}`;
+  const messages = buildMessages(userMsg, body.history ?? [], motz);
   const result = await callXAI(env, messages);
   return apiOk(result);
 }
 
+/** POST /api/chat { message, files?, history?, projectContext? } */
 async function handleChat(request, env) {
   const body = await parseBody(request);
-  if (!body.message || !String(body.message).trim()) return apiError('"message" נדרש');
+  if (!body.message?.trim()) return apiError('"message" נדרש');
 
-  const filesBlock = (body.files || [])
-    .map(file => `=== ${file.name} ===\n${file.content || ''}`)
+  const filesBlock = (body.files ?? [])
+    .map(f => `=== ${f.name} ===\n${f.content || ''}`)
     .join('\n\n');
 
   const context = filesBlock ? `קוד נוכחי:\n\n${filesBlock}\n\n---\n` : '';
+
   const motz = detectMotzarella(
-    [{ content: body.message }, ...((body.history || []).slice(-4))],
+    [{ content: body.message }, ...((body.history ?? []).slice(-4))],
     body.projectContext || {}
   );
 
-  const userMsg = `${context}${String(body.message).trim()}`;
-  const messages = buildMessages(userMsg, body.history || [], motz);
+  const userMsg = `${context}${body.message.trim()}`;
+  const messages = buildMessages(userMsg, body.history ?? [], motz);
   const result = await callXAI(env, messages);
   return apiOk(result);
+}
+
+/** GET /api/health */
+function handleHealth(env) {
+  return apiOk({ model: env.XAI_MODEL || MODEL, timestamp: new Date().toISOString() });
 }
 
 function withCors(response, cors) {
@@ -256,15 +288,19 @@ function withCors(response, cors) {
   return out;
 }
 
+// ─── Main ─────────────────────────────────────────────────────────────────────
+
 export default {
   async fetch(request, env) {
+    const origin = env.ALLOWED_ORIGIN || '*';
     const cors = {
-      'Access-Control-Allow-Origin': env.ALLOWED_ORIGIN || '*',
+      'Access-Control-Allow-Origin': origin,
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
       'Access-Control-Max-Age': '86400'
     };
 
+    // ── CORS preflight ──
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: cors });
     }
@@ -275,10 +311,7 @@ export default {
       let response;
 
       if (request.method === 'GET' && pathname === '/api/health') {
-        response = apiOk({
-          model: env.XAI_MODEL || 'grok-3-mini-fast',
-          timestamp: new Date().toISOString()
-        });
+        response = handleHealth(env);
       } else if (request.method === 'POST' && pathname === '/api/generate') {
         response = await handleGenerate(request, env);
       } else if (request.method === 'POST' && pathname === '/api/improve') {
@@ -293,8 +326,8 @@ export default {
       }
 
       return withCors(response, cors);
-    } catch (error) {
-      const response = apiError(error?.message || 'שגיאת שרת', 500);
+    } catch (e) {
+      const response = apiError(e?.message || 'שגיאת שרת', 500);
       return withCors(response, cors);
     }
   }
