@@ -976,7 +976,7 @@ async function callAIWorker(route, payload) {
 
         const [
             { initializeApp },
-            { getFirestore, collection, doc, setDoc, getDoc, addDoc, onSnapshot, serverTimestamp },
+            { getFirestore, collection, doc, setDoc, getDoc, addDoc, serverTimestamp },
             { getAuth, onAuthStateChanged,
               signInWithEmailAndPassword, createUserWithEmailAndPassword,
               updateProfile, signOut, GoogleAuthProvider, signInWithPopup }
@@ -1002,13 +1002,6 @@ async function callAIWorker(route, payload) {
             async loadWorkspace(uid) {
                 const snap = await getDoc(doc(db, 'codesphere_workspaces', uid));
                 return snap.exists() ? snap.data() : null;
-            },
-            subscribeWorkspace(uid, onData, onError) {
-                return onSnapshot(
-                    doc(db, 'codesphere_workspaces', uid),
-                    (snap) => onData(snap.exists() ? snap.data() : null),
-                    onError
-                );
             },
             /* Create new share OR update existing one — returns the permanent cloudId */
             async upsertShare(cloudId, shareData) {
@@ -1413,21 +1406,11 @@ async function startWorkspaceSync(uid) {
     const cloudWorkspace = await _fb.loadWorkspace(uid);
     if (cloudWorkspace) {
         applyWorkspaceData(cloudWorkspace);
-        showToast("הסביבה נטענה אוטומטית מהענן", "cloud-arrow-down", "#22c55e");
+        showToast("הסביבה נטענה מהענן בפתיחת המכשיר", "cloud-arrow-down", "#22c55e");
     } else if (files.length > 0 || projects.length > 0) {
         await _fb.saveWorkspace(uid, { files, projects });
         showToast("הועלה גיבוי ראשון לענן", "cloud-arrow-up", "#22c55e");
     }
-
-    workspaceUnsubscribe = _fb.subscribeWorkspace(uid, (ws) => {
-        if (!ws || isApplyingRemoteWorkspace) return;
-        const remoteSignature = getWorkspaceSignature(ws);
-        if (remoteSignature === lastWorkspaceSignature) return;
-        applyWorkspaceData(ws);
-        showToast("בוצע סנכרון מהענן", "cloud", "#00d4ff");
-    }, (err) => {
-        console.warn('Workspace realtime sync failed:', err?.message || err);
-    });
 }
 
 function toggleTheme() {
