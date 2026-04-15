@@ -315,6 +315,48 @@
             color: var(--text); outline: none; font-size: 13.5px; font-family: 'Heebo', sans-serif; transition: border-color 0.2s;
         }
         .ai-input-area input:focus { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-dim); }
+        .ai-context-bar {
+            padding: 7px 14px; background: var(--surface3); border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--text-muted); flex-shrink: 0;
+        }
+        .ai-context-bar .ctx-label {
+            flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+            color: var(--primary); font-weight: 600;
+        }
+        .ai-clear-btn {
+            background: none; border: none; color: var(--text-muted); cursor: pointer;
+            font-size: 11px; padding: 2px 7px; border-radius: 5px; transition: all 0.15s;
+            font-family: 'Heebo', sans-serif;
+        }
+        .ai-clear-btn:hover { background: var(--surface2); color: #ff5555; }
+        .ai-send-btn {
+            width: 38px; height: 38px; border-radius: 50%; border: none; flex-shrink: 0;
+            background: linear-gradient(135deg, var(--primary), #00a8cc);
+            color: #000; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center;
+            transition: all 0.2s; box-shadow: 0 3px 12px rgba(0,212,255,0.3);
+        }
+        .ai-send-btn:hover { transform: scale(1.08); box-shadow: 0 5px 18px rgba(0,212,255,0.5); }
+        .ai-input-row { display: flex; gap: 8px; align-items: center; }
+        .ai-input-row input { flex: 1; }
+
+        /* HELP MODAL */
+        .help-modal-content { max-width: 660px; max-height: 88vh; overflow-y: auto; }
+        .help-section { margin-bottom: 22px; }
+        .help-section-title {
+            font-size: 14px; font-weight: 700; color: var(--primary); margin-bottom: 10px;
+            display: flex; align-items: center; gap: 8px; padding-bottom: 7px;
+            border-bottom: 1px solid var(--border);
+        }
+        .help-row {
+            display: flex; align-items: flex-start; gap: 11px; padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 13px;
+        }
+        .help-row:last-child { border-bottom: none; }
+        .help-icon { width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center; font-size: 12px; }
+        .help-key { background: var(--surface3); border: 1px solid var(--border); border-radius: 5px;
+            padding: 1px 7px; font-size: 11px; white-space: nowrap; font-family: monospace; color: var(--text-muted); }
+        .help-desc { color: var(--text-muted); font-size: 12px; margin-top: 2px; line-height: 1.5; }
 
         /* HAMBURGER MENU */
         .sidebar-menu {
@@ -584,12 +626,22 @@
         <span style="font-weight:600;">AI בונה אתרים</span>
         <div onclick="toggleAIPanel()" style="margin-right:auto;cursor:pointer;font-size:22px;color:#888;">✕</div>
     </div>
-    <div class="ai-messages" id="ai-messages">
-        <div class="ai-message ai-bot">שלום! מה תרצה שאשנה בקוד?</div>
+    <div class="ai-context-bar" id="ai-context-bar">
+        <i class="fas fa-file-code" style="font-size:11px;flex-shrink:0;"></i>
+        <span class="ctx-label" id="ai-context-label">אין קובץ פתוח</span>
+        <button class="ai-clear-btn" onclick="clearCurrentChatHistory()" title="נקה שיחה">
+            <i class="fas fa-trash-alt"></i> נקה שיחה
+        </button>
     </div>
+    <div class="ai-messages" id="ai-messages"></div>
     <div class="ai-input-area">
-        <input type="text" id="ai-input" placeholder="לדוגמה: הוסף כפתור כחול..."
-               onkeypress="if(event.key==='Enter') handleAIRequest()">
+        <div class="ai-input-row">
+            <input type="text" id="ai-input" placeholder="תאר מה לשנות / לבנות..."
+                   onkeypress="if(event.key==='Enter') handleAIRequest()">
+            <button class="ai-send-btn" onclick="handleAIRequest()" title="שלח">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+        </div>
     </div>
 </div>
 
@@ -635,6 +687,115 @@
     <div class="menu-item" onclick="clearAllFiles();toggleSidebarMenu()">
         <i class="fas fa-trash-alt" style="color:#ff5555;"></i><span>נקה את כל הקבצים</span>
     </div>
+    <div class="menu-item" onclick="openHelpModal();toggleSidebarMenu()">
+        <i class="fas fa-circle-question" style="color:#00d4ff;"></i><span>מדריך שימוש באתר</span>
+    </div>
+</div>
+
+<!-- ═══ HELP MODAL ═══ -->
+<div class="modal" id="help-modal" onclick="if(event.target===this)closeHelpModal()">
+  <div class="modal-content help-modal-content">
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:22px;">
+      <div style="width:46px;height:46px;border-radius:14px;background:linear-gradient(135deg,var(--primary),var(--accent));display:flex;align-items:center;justify-content:center;font-size:22px;color:#000;flex-shrink:0;">
+        <i class="fas fa-circle-question"></i>
+      </div>
+      <div>
+        <div style="font-size:20px;font-weight:700;">מדריך CodeSphere</div>
+        <div style="font-size:12px;color:var(--text-muted);">כל מה שאפשר לעשות באתר</div>
+      </div>
+      <button onclick="closeHelpModal()" style="margin-right:auto;background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer;">✕</button>
+    </div>
+
+    <!-- SECTION: עורך -->
+    <div class="help-section">
+      <div class="help-section-title"><i class="fas fa-code"></i> עורך הקוד</div>
+      <div class="help-row">
+        <div class="help-icon" style="background:rgba(0,212,255,0.12);color:var(--primary);"><i class="fas fa-file-plus"></i></div>
+        <div><div style="font-weight:600;">קובץ חדש <span class="help-key">Ctrl+N</span></div><div class="help-desc">יוצר קובץ HTML ריק ופותח אותו בעורך</div></div>
+      </div>
+      <div class="help-row">
+        <div class="help-icon" style="background:rgba(34,197,94,0.12);color:#22c55e;"><i class="fas fa-floppy-disk"></i></div>
+        <div><div style="font-weight:600;">שמור <span class="help-key">Ctrl+S</span></div><div class="help-desc">שומר מקומית ומסנכרן לענן אוטומטית (אם מחובר)</div></div>
+      </div>
+      <div class="help-row">
+        <div class="help-icon" style="background:rgba(245,158,11,0.12);color:#f59e0b;"><i class="fas fa-upload"></i></div>
+        <div><div style="font-weight:600;">העלאת קובץ</div><div class="help-desc">פותח HTML / CSS / JS / TXT ישירות לעורך</div></div>
+      </div>
+      <div class="help-row">
+        <div class="help-icon" style="background:rgba(123,94,255,0.12);color:var(--accent);"><i class="fas fa-eye"></i></div>
+        <div><div style="font-weight:600;">תצוגה מקדימה <span class="help-key">Ctrl+P</span></div><div class="help-desc">פותח חלונית תצוגה בזמן-אמת עם תמיכה במובייל / טאבלט / דסקטופ</div></div>
+      </div>
+      <div class="help-row">
+        <div class="help-icon" style="background:rgba(0,212,255,0.12);color:var(--primary);"><i class="fas fa-magnifying-glass"></i></div>
+        <div><div style="font-weight:600;">חיפוש והחלפה <span class="help-key">Ctrl+F</span></div><div class="help-desc">מאתר טקסט בקוד ומציג כמה תוצאות — ניתן להחליף הכל בלחיצה</div></div>
+      </div>
+    </div>
+
+    <!-- SECTION: פרויקטים וקבצים -->
+    <div class="help-section">
+      <div class="help-section-title"><i class="fas fa-folder-open"></i> פרויקטים וקבצים</div>
+      <div class="help-row">
+        <div class="help-icon" style="background:rgba(245,158,11,0.12);color:#f59e0b;"><i class="fas fa-folder-plus"></i></div>
+        <div><div style="font-weight:600;">פרויקט חדש</div><div class="help-desc">קבץ מספר קבצים (HTML + CSS + JS) תחת שם אחד. כשהצ'אט פתוח על פרויקט — ה-AI מקבל את כל הקבצים יחד ויכול לשנות כל אחד מהם</div></div>
+      </div>
+      <div class="help-row">
+        <div class="help-icon" style="background:rgba(0,212,255,0.12);color:var(--primary);"><i class="fas fa-file-code"></i></div>
+        <div><div style="font-weight:600;">קובץ עצמאי</div><div class="help-desc">קובץ שאינו בפרויקט — הצ'אט עובד עליו לבד ושומר היסטוריה נפרדת</div></div>
+      </div>
+      <div class="help-row">
+        <div class="help-icon" style="background:rgba(123,94,255,0.12);color:var(--accent);"><i class="fas fa-arrow-right-arrow-left"></i></div>
+        <div><div style="font-weight:600;">מעבר בין קבצים</div><div class="help-desc">לחיצה על טאב מעלה פותח את הקובץ ומחליף את הקשר הצ'אט — כל קובץ / פרויקט שומר שיחה נפרדת</div></div>
+      </div>
+    </div>
+
+    <!-- SECTION: AI צ'אט -->
+    <div class="help-section">
+      <div class="help-section-title"><i class="fas fa-robot"></i> AI צ'אט</div>
+      <div class="help-row">
+        <div class="help-icon" style="background:rgba(16,185,129,0.12);color:#10b981;"><i class="fas fa-comment-dots"></i></div>
+        <div><div style="font-weight:600;">שיחה רציפה</div><div class="help-desc">כל הודעה חדשה נשלחת עם כל ההיסטוריה הקודמת — ה-AI זוכר מה נאמר ומה נבנה</div></div>
+      </div>
+      <div class="help-row">
+        <div class="help-icon" style="background:rgba(0,212,255,0.12);color:var(--primary);"><i class="fas fa-layer-group"></i></div>
+        <div><div style="font-weight:600;">הקשר פרויקט</div><div class="help-desc">כשקובץ שייך לפרויקט — ה-AI מקבל את כל קבצי הפרויקט. ביקשת לשנות צבע ב-CSS מתוך דף HTML? ה-AI ישנה את ה-CSS גם</div></div>
+      </div>
+      <div class="help-row">
+        <div class="help-icon" style="background:rgba(255,85,85,0.12);color:#ff5555;"><i class="fas fa-trash-alt"></i></div>
+        <div><div style="font-weight:600;">נקה שיחה</div><div class="help-desc">מאפס את היסטוריית הצ'אט של הקובץ / פרויקט הנוכחי בלבד</div></div>
+      </div>
+      <div class="help-row">
+        <div class="help-icon" style="background:rgba(34,197,94,0.12);color:#22c55e;"><i class="fas fa-check-circle"></i></div>
+        <div><div style="font-weight:600;">אישור שינוי</div><div class="help-desc">לפני שכל שינוי מוחל — מוצגת תצוגה מקדימה לאישור. לחץ "אשר" להחלה, "בטל" לביטול</div></div>
+      </div>
+      <div class="help-row">
+        <div class="help-icon" style="background:rgba(0,212,255,0.12);color:var(--primary);"><i class="fas fa-cloud"></i></div>
+        <div><div style="font-weight:600;">שמירת שיחות בענן</div><div class="help-desc">היסטוריית כל השיחות נשמרת בענן אם מחובר לחשבון — וטוענת בפתיחה מכל מכשיר</div></div>
+      </div>
+    </div>
+
+    <!-- SECTION: ענן ושיתוף -->
+    <div class="help-section">
+      <div class="help-section-title"><i class="fas fa-cloud"></i> ענן ושיתוף</div>
+      <div class="help-row">
+        <div class="help-icon" style="background:rgba(245,158,11,0.12);color:#f59e0b;"><i class="fas fa-cloud-arrow-up"></i></div>
+        <div><div style="font-weight:600;">שמירה בענן</div><div class="help-desc">שומר את כל הקבצים, פרויקטים והיסטוריית שיחות — נגיש מכל מכשיר</div></div>
+      </div>
+      <div class="help-row">
+        <div class="help-icon" style="background:rgba(123,94,255,0.12);color:var(--accent);"><i class="fas fa-share-alt"></i></div>
+        <div><div style="font-weight:600;">שיתוף פרויקט</div><div class="help-desc">יוצר קישור ציבורי קבוע לאתר שלך — עם QR Code. עדכון הפרויקט מעדכן את אותו קישור</div></div>
+      </div>
+      <div class="help-row">
+        <div class="help-icon" style="background:rgba(0,212,255,0.12);color:var(--primary);"><i class="fas fa-link"></i></div>
+        <div><div style="font-weight:600;">שיתוף קובץ</div><div class="help-desc">יוצר קישור קבוע לקובץ הנוכחי בלבד</div></div>
+      </div>
+    </div>
+
+    <div class="modal-actions" style="justify-content:center;">
+      <button onclick="closeHelpModal()" class="btn btn-primary" style="padding:10px 32px;">
+        <i class="fas fa-check"></i> הבנתי!
+      </button>
+    </div>
+  </div>
 </div>
 
 <!-- ═══ AUTH MODAL ═══ -->
@@ -833,7 +994,7 @@ let currentFileIndex = -1;
 let isPreviewOpen = false, isAIPanelOpen = false, isFilesSidebarOpen = false;
 let currentPreviewDevice = 'desktop';
 let pendingAIChange = null;
-let aiConversationHistory = [];
+let chatHistories = {}; // key: 'file_<id>' or 'project_<id>'
 let _fb = null;        // Firebase helpers
 let _auth = null;      // Firebase auth instance
 let currentUser = null;
@@ -1056,6 +1217,107 @@ function openAISettings() {
     showToast('הגדרות AI נשמרו במכשיר זה בלבד');
 }
 
+/* ═══════════════════════════════════════════════
+   CHAT HISTORY HELPERS
+═══════════════════════════════════════════════ */
+function getChatKey() {
+    if (currentFileIndex < 0 || currentFileIndex >= files.length) return null;
+    const file = files[currentFileIndex];
+    const project = projects.find(p => p.fileIds.includes(file.id));
+    return project ? `project_${project.id}` : `file_${file.id}`;
+}
+
+function getChatHistory() {
+    const key = getChatKey();
+    return key ? (chatHistories[key] || []) : [];
+}
+
+function pushChatHistory(role, content) {
+    const key = getChatKey();
+    if (!key) return;
+    if (!chatHistories[key]) chatHistories[key] = [];
+    chatHistories[key].push({ role, content });
+    saveChatHistoriesToStorage();
+}
+
+function clearCurrentChatHistory() {
+    const key = getChatKey();
+    if (!key) return;
+    chatHistories[key] = [];
+    saveChatHistoriesToStorage();
+    renderAIMessages();
+    showToast('היסטוריית השיחה נוקתה', 'trash-alt', '#ff5555');
+}
+
+function getProjectContextFiles() {
+    if (currentFileIndex < 0 || currentFileIndex >= files.length) return null;
+    const file = files[currentFileIndex];
+    const project = projects.find(p => p.fileIds.includes(file.id));
+    if (project) {
+        const projectFiles = files.filter(f => project.fileIds.includes(f.id));
+        return { isProject: true, projectName: project.name, files: projectFiles };
+    }
+    return { isProject: false, projectName: null, files: [file] };
+}
+
+function renderAIMessages() {
+    const history = getChatHistory();
+    const ctx = getProjectContextFiles();
+    aiMessages.innerHTML = '';
+
+    // Update context bar
+    const ctxLabel = document.getElementById('ai-context-label');
+    const ctxBar = document.getElementById('ai-context-bar');
+    if (ctx) {
+        if (ctx.isProject) {
+            ctxLabel.textContent = `פרויקט: ${ctx.projectName} (${ctx.files.length} קבצים)`;
+            ctxBar.querySelector('i').className = 'fas fa-folder-open';
+            ctxBar.style.borderRight = '2px solid #f59e0b';
+        } else {
+            ctxLabel.textContent = ctx.files[0]?.name || 'אין קובץ';
+            ctxBar.querySelector('i').className = 'fas fa-file-code';
+            ctxBar.style.borderRight = '2px solid var(--primary)';
+        }
+    } else {
+        ctxLabel.textContent = 'אין קובץ פתוח';
+        ctxBar.querySelector('i').className = 'fas fa-file-code';
+        ctxBar.style.borderRight = 'none';
+    }
+
+    if (history.length === 0) {
+        const msg = document.createElement('div');
+        msg.className = 'ai-message ai-bot';
+        msg.textContent = ctx?.isProject
+            ? `שלום! פרויקט "${ctx.projectName}" פתוח — ה-AI מקבל את כל ${ctx.files.length} הקבצים. מה לשנות?`
+            : 'שלום! מה תרצה שאשנה בקוד?';
+        aiMessages.appendChild(msg);
+    } else {
+        history.forEach(m => {
+            const msg = document.createElement('div');
+            msg.className = `ai-message ${m.role === 'user' ? 'ai-user' : 'ai-bot'}`;
+            msg.textContent = m.content;
+            aiMessages.appendChild(msg);
+        });
+    }
+    aiMessages.scrollTop = aiMessages.scrollHeight;
+}
+
+function saveChatHistoriesToStorage() {
+    try {
+        localStorage.setItem('codesphere_chat_histories_v1', JSON.stringify(chatHistories));
+    } catch(e) {}
+}
+
+function loadChatHistoriesFromStorage() {
+    try {
+        const raw = localStorage.getItem('codesphere_chat_histories_v1');
+        if (raw) chatHistories = JSON.parse(raw);
+    } catch(e) { chatHistories = {}; }
+}
+
+function openHelpModal() { document.getElementById('help-modal').style.display = 'flex'; }
+function closeHelpModal() { document.getElementById('help-modal').style.display = 'none'; }
+
 function normalizeAIFile(file) {
     return {
         id: Date.now() + Math.floor(Math.random() * 100000),
@@ -1196,6 +1458,7 @@ async function callAIWorker(route, payload) {
                     files:    data.files.map(f => ({ id: f.id, name: f.name, content: f.content })),
                     projects: data.projects,
                     personalSketches: Array.isArray(data.personalSketches) ? data.personalSketches : [],
+                    chatHistories: data.chatHistories || {},
                     updatedAt: serverTimestamp()
                 });
             },
@@ -1535,6 +1798,7 @@ function saveToStorage() {
         localStorage.setItem('codesphere_files_v4', JSON.stringify(files));
         localStorage.setItem('codesphere_projects_v1', JSON.stringify(projects));
         localStorage.setItem('codesphere_personal_sketches_v1', JSON.stringify(personalSketches));
+        localStorage.setItem('codesphere_chat_histories_v1', JSON.stringify(chatHistories));
     } catch(e) {}
     if (!isApplyingRemoteWorkspace) scheduleCloudAutoSave();
 }
@@ -1572,6 +1836,10 @@ function applyWorkspaceData(workspaceData) {
         }));
         projects = Array.isArray(workspaceData?.projects) ? workspaceData.projects : [];
         personalSketches = Array.isArray(workspaceData?.personalSketches) ? workspaceData.personalSketches : [];
+        if (workspaceData?.chatHistories && typeof workspaceData.chatHistories === 'object') {
+            chatHistories = workspaceData.chatHistories;
+            saveChatHistoriesToStorage();
+        }
 
         if (files.length === 0) {
             files = [{ id: 1, name: 'index.html', content: '' }];
@@ -1634,7 +1902,7 @@ async function saveToFirebase(options = {}) {
     dot.className = 'saving';
     try {
         if (!silent) showToast("שומר בענן...", "cloud-arrow-up", "#ff9800");
-        await _fb.saveWorkspace(currentUser.uid, { files, projects, personalSketches });
+        await _fb.saveWorkspace(currentUser.uid, { files, projects, personalSketches, chatHistories });
         lastWorkspaceSignature = getWorkspaceSignature({ files, projects, personalSketches });
         dot.className = 'ok';
         if (!silent) showToast("נשמר בענן!", "cloud-arrow-up", "#22c55e");
@@ -1939,6 +2207,12 @@ async function handleAIRequest() {
     const prompt = input.value.trim();
     if (!prompt) return;
 
+    // Save latest editor content before sending
+    const activeFile = getCurrentOpenFileContext();
+    if (activeFile?.index >= 0) {
+        files[activeFile.index].content = activeFile.content;
+    }
+
     addAIMessage('user', prompt);
     input.value = '';
 
@@ -1949,30 +2223,22 @@ async function handleAIRequest() {
     aiMessages.scrollTop = aiMessages.scrollHeight;
 
     try {
-        const activeFile = getCurrentOpenFileContext();
-        if (activeFile?.index >= 0) {
-            files[activeFile.index].content = activeFile.content;
-        }
+        // Determine context: project (all files) or single file
+        const ctx = getProjectContextFiles();
+        const ctxFiles = ctx ? ctx.files.map(f => ({ name: f.name, content: f.content })) : [];
+        const history = getChatHistory().slice(-12);
+        const hasFiles = ctxFiles.length > 0;
 
-        const hasFiles = Array.isArray(files) && files.length > 0;
         const route = hasFiles ? '/api/chat' : '/api/generate';
         const payload = hasFiles
             ? {
                 message: prompt,
-                files: activeFile
-                    ? [{ name: activeFile.name, content: activeFile.content }]
-                    : files.map(f => ({ name: f.name, content: f.content })),
-                history: aiConversationHistory.slice(-12),
+                files: ctxFiles,
+                history,
                 activeFileName: activeFile?.name || null,
-                projectContext: {
-                    projectNames: projects.map(p => p.name),
-                    fileNames: files.map(f => f.name)
-                }
+                isProject: ctx?.isProject || false
             }
-            : {
-                prompt,
-                projectContext: {}
-            };
+            : { prompt, history };
 
         const result = await callAIWorker(route, payload);
         const description = result.description || 'ה-AI יצר עדכון קבצים חדש.';
@@ -1982,14 +2248,13 @@ async function handleAIRequest() {
             description,
             activeFileName: activeFile?.name || null,
             activeFileIndex: activeFile?.index ?? -1,
+            isProject: ctx?.isProject || false,
             files: result.files || []
         };
 
-        aiConversationHistory.push({ role: 'user', content: prompt });
-        aiConversationHistory.push({ role: 'assistant', content: description });
-
-        loading.textContent = `${description} אשר כדי להחיל את השינוי.`;
-        document.getElementById('ai-suggestion-text').innerHTML = `<strong>בקשה:</strong><br>${prompt}<br><br><strong>סיכום:</strong><br>${description}`;
+        loading.textContent = `${description} — אשר כדי להחיל`;
+        document.getElementById('ai-suggestion-text').innerHTML =
+            `<strong>בקשה:</strong><br>${prompt}<br><br><strong>סיכום:</strong><br>${description}`;
         document.getElementById('confirm-modal').style.display = 'flex';
     } catch (error) {
         loading.textContent = `שגיאה: ${error?.message || 'נכשל בעיבוד הבקשה'}`;
@@ -1999,12 +2264,18 @@ async function handleAIRequest() {
 
 function approveAIChange() {
     if (pendingAIChange && Array.isArray(pendingAIChange.files) && pendingAIChange.files.length) {
+        // Save history before upsert so getChatKey() still resolves correctly
+        pushChatHistory('user', pendingAIChange.prompt);
+        pushChatHistory('assistant', pendingAIChange.description);
+
         upsertFilesFromAI(pendingAIChange.files, {
             preferredOpenName: pendingAIChange.activeFileName || '',
             activeFileIndex: pendingAIChange.activeFileIndex ?? -1
         });
         livePreview();
-        showToast('קבצי הפרויקט עודכנו מה-AI');
+        renderAIMessages();
+        if (currentUser && _fb) scheduleCloudAutoSave();
+        showToast('קבצי הפרויקט עודכנו מה-AI', 'check-circle', '#22c55e');
     }
     document.getElementById('confirm-modal').style.display = 'none';
     pendingAIChange = null;
@@ -2104,6 +2375,7 @@ function openFile(i) {
     document.getElementById('current-file-name').textContent = files[i].name;
     renderProjectsAndFiles(); renderTabs(); livePreview(); updateStats();
     recalculateSearchResults();
+    renderAIMessages();
 }
 
 function closeTab(i) {
@@ -2479,6 +2751,7 @@ function init() {
         if (sp) projects = JSON.parse(sp);
         if (ssk) personalSketches = JSON.parse(ssk);
     } catch(e) {}
+    loadChatHistoriesFromStorage();
 
     if (files.length === 0) {
         files = [{ id:1, name:'index.html', content:'' }];
@@ -2487,6 +2760,7 @@ function init() {
     currentFileIndex = 0;
     document.getElementById('current-file-name').textContent = files[0].name;
     renderProjectsAndFiles(); renderTabs();
+    renderAIMessages();
     codeSearchInput.addEventListener('keydown', e => {
         if (e.key === 'Enter') {
             e.preventDefault();
