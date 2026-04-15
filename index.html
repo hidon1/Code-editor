@@ -266,6 +266,21 @@
         }
         .preview-title { display: flex; align-items: center; gap: 8px; font-weight: 700; white-space: nowrap; }
         .preview-controls { display: flex; align-items: center; gap: 5px; }
+        .preview-sketch-btn {
+            border: 1px solid var(--border);
+            background: var(--surface3);
+            color: var(--text);
+            border-radius: 8px;
+            padding: 6px 10px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.18s;
+        }
+        .preview-sketch-btn:hover { border-color: var(--primary); color: var(--primary); }
         .preview-device-btn {
             width: 30px; height: 30px; border-radius: 8px;
             border: 1px solid var(--border); background: var(--surface2);
@@ -493,9 +508,6 @@
         <button onclick="togglePreview()" class="btn" id="preview-btn">
             <i class="fas fa-eye"></i><span>תצוגה מקדימה</span>
         </button>
-        <button onclick="openSketchModal()" class="btn" title="סקיצות לימודיות ל-HTML/CSS/JS">
-            <i class="fas fa-lightbulb"></i><span>סקיצות</span>
-        </button>
         <!-- User chip (shown when logged in) -->
         <div class="user-chip" id="user-chip" style="display:none;" onclick="toggleSidebarMenu()">
             <div class="user-avatar" id="header-avatar">?</div>
@@ -536,6 +548,9 @@
         <div class="preview-header">
             <div class="preview-title"><i class="fas fa-eye" style="color:var(--primary);"></i> תצוגה מקדימה</div>
             <div class="preview-controls">
+                <button class="preview-sketch-btn" onclick="openSketchModal()" title="סקיצות ותבניות">
+                    <i class="fas fa-lightbulb"></i><span>סקיצה</span>
+                </button>
                 <button class="preview-device-btn active" data-device="desktop" title="מחשב" onclick="setPreviewDevice('desktop')"><i class="fas fa-desktop"></i></button>
                 <button class="preview-device-btn" data-device="tablet" title="טאבלט" onclick="setPreviewDevice('tablet')"><i class="fas fa-tablet-alt"></i></button>
                 <button class="preview-device-btn" data-device="phone" title="טלפון" onclick="setPreviewDevice('phone')"><i class="fas fa-mobile-alt"></i></button>
@@ -759,7 +774,17 @@
         <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px;">
             בחר סוג קובץ כדי לקבל תבנית עם תגיות/פקודות מוכרות וללמוד תוך כדי ניסוי.
         </p>
+        <div style="display:grid;gap:8px;margin-bottom:14px;border:1px solid var(--border);border-radius:10px;padding:10px;background:var(--surface2);">
+            <strong style="color:var(--primary);"><i class="fas fa-user-pen"></i> סקיצה אישית</strong>
+            <input id="custom-sketch-name" class="modal-input" style="margin:0;" placeholder="שם סקיצה (למשל: כפתור אנימציה)">
+            <textarea id="custom-sketch-content" class="modal-input" style="margin:0;min-height:120px;resize:vertical;" placeholder="הכנס כאן קוד..."></textarea>
+            <button class="btn btn-primary" style="justify-content:center;" onclick="addPersonalSketch()">
+                <i class="fas fa-plus"></i> שמור סקיצה אישית
+            </button>
+        </div>
         <div id="sketch-list" style="display:grid;gap:8px;"></div>
+        <h4 style="margin:12px 0 8px;color:var(--primary);font-size:14px;"><i class="fas fa-bookmark"></i> סקיצה אישית שמורה</h4>
+        <div id="personal-sketch-list" style="display:grid;gap:8px;"></div>
         <div class="modal-actions" style="margin-top:14px;">
             <button class="btn" onclick="closeSketchModal()"><i class="fas fa-times"></i> סגור</button>
         </div>
@@ -885,6 +910,7 @@ const searchPanel = document.getElementById('search-results-panel');
 let searchMatches = [];
 let currentSearchMatchIndex = -1;
 let sketchCounter = 1;
+let personalSketches = [];
 
 const SKETCH_TEMPLATES = [
     {
@@ -1146,6 +1172,7 @@ async function callAIWorker(route, payload) {
                 await setDoc(doc(db, 'codesphere_workspaces', uid), {
                     files:    data.files.map(f => ({ id: f.id, name: f.name, content: f.content })),
                     projects: data.projects,
+                    personalSketches: Array.isArray(data.personalSketches) ? data.personalSketches : [],
                     updatedAt: serverTimestamp()
                 });
             },
@@ -1484,6 +1511,7 @@ function saveToStorage() {
     try {
         localStorage.setItem('codesphere_files_v4', JSON.stringify(files));
         localStorage.setItem('codesphere_projects_v1', JSON.stringify(projects));
+        localStorage.setItem('codesphere_personal_sketches_v1', JSON.stringify(personalSketches));
     } catch(e) {}
     if (!isApplyingRemoteWorkspace) scheduleCloudAutoSave();
 }
@@ -1503,7 +1531,8 @@ function getWorkspaceSignature(workspaceData) {
             name: f.name || '',
             content: f.content || ''
         })),
-        projects: Array.isArray(workspaceData?.projects) ? workspaceData.projects : []
+        projects: Array.isArray(workspaceData?.projects) ? workspaceData.projects : [],
+        personalSketches: Array.isArray(workspaceData?.personalSketches) ? workspaceData.personalSketches : []
     };
     return JSON.stringify(normalized);
 }
@@ -1519,6 +1548,7 @@ function applyWorkspaceData(workspaceData) {
             content: f.content || ''
         }));
         projects = Array.isArray(workspaceData?.projects) ? workspaceData.projects : [];
+        personalSketches = Array.isArray(workspaceData?.personalSketches) ? workspaceData.personalSketches : [];
 
         if (files.length === 0) {
             files = [{ id: 1, name: 'index.html', content: '' }];
@@ -1558,7 +1588,7 @@ async function startWorkspaceSync(uid) {
         applyWorkspaceData(cloudWorkspace);
         showToast("הסביבה נטענה מהענן בפתיחת המכשיר", "cloud-arrow-down", "#22c55e");
     } else if (files.length > 0 || projects.length > 0) {
-        await _fb.saveWorkspace(uid, { files, projects });
+        await _fb.saveWorkspace(uid, { files, projects, personalSketches });
         showToast("הועלה גיבוי ראשון לענן", "cloud-arrow-up", "#22c55e");
     }
 }
@@ -1581,8 +1611,8 @@ async function saveToFirebase(options = {}) {
     dot.className = 'saving';
     try {
         if (!silent) showToast("שומר בענן...", "cloud-arrow-up", "#ff9800");
-        await _fb.saveWorkspace(currentUser.uid, { files, projects });
-        lastWorkspaceSignature = getWorkspaceSignature({ files, projects });
+        await _fb.saveWorkspace(currentUser.uid, { files, projects, personalSketches });
+        lastWorkspaceSignature = getWorkspaceSignature({ files, projects, personalSketches });
         dot.className = 'ok';
         if (!silent) showToast("נשמר בענן!", "cloud-arrow-up", "#22c55e");
     } catch(e) {
@@ -2251,16 +2281,12 @@ function openSketchModal() {
                 <i class="${template.icon}" style="color:${template.color};font-size:18px;"></i>
                 <strong>${template.label}</strong>
             </div>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                <button class="btn" onclick="insertSketchIntoCurrent('${template.type}')">
-                    <i class="fas fa-pen"></i> הכנס לקובץ פתוח
-                </button>
-                <button class="btn btn-primary" onclick="createFileFromSketch('${template.type}')">
-                    <i class="fas fa-file-circle-plus"></i> צור קובץ חדש
-                </button>
-            </div>
+            <button class="btn btn-primary" onclick="createFileFromSketch('${template.type}')">
+                <i class="fas fa-file-circle-plus"></i> צור קובץ חדש
+            </button>
         </div>
     `).join('');
+    renderPersonalSketches();
     document.getElementById('sketch-modal').style.display = 'flex';
 }
 
@@ -2272,24 +2298,86 @@ function getSketchTemplate(type) {
     return SKETCH_TEMPLATES.find(t => t.type === type) || null;
 }
 
-function insertSketchIntoCurrent(type) {
-    const template = getSketchTemplate(type);
-    if (!template) return;
-    if (currentFileIndex < 0) {
-        files.push({ id: Date.now(), name: `קובץ-${files.length + 1}.${type}`, content: '' });
-        currentFileIndex = files.length - 1;
+function escapeHtml(text) {
+    return String(text || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function renderPersonalSketches() {
+    const container = document.getElementById('personal-sketch-list');
+    if (!container) return;
+    if (!Array.isArray(personalSketches) || personalSketches.length === 0) {
+        container.innerHTML = `<div style="font-size:12px;color:var(--text-muted);border:1px dashed var(--border);border-radius:8px;padding:10px;">
+            עדיין אין סקיצות אישיות. הוסף למעלה שם וקוד ולחץ "שמור סקיצה אישית".
+        </div>`;
+        return;
     }
-    files[currentFileIndex].content = template.content;
-    editor.value = template.content;
-    setEditorLanguageByFilename(files[currentFileIndex].name);
-    document.getElementById('current-file-name').textContent = files[currentFileIndex].name;
+    container.innerHTML = personalSketches.map(sketch => `
+        <div style="border:1px solid var(--border);border-radius:10px;padding:10px;background:var(--surface2);">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;">
+                <strong style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(sketch.name)}</strong>
+                <button class="btn" onclick="deletePersonalSketch('${sketch.id}')" style="padding:5px 8px;">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </div>
+            <button class="btn btn-primary" onclick="createFileFromPersonalSketch('${sketch.id}')">
+                <i class="fas fa-file-circle-plus"></i> צור קובץ חדש
+            </button>
+        </div>
+    `).join('');
+}
+
+function addPersonalSketch() {
+    const nameInput = document.getElementById('custom-sketch-name');
+    const contentInput = document.getElementById('custom-sketch-content');
+    const name = String(nameInput?.value || '').trim();
+    const content = String(contentInput?.value || '');
+    if (!name) {
+        showToast('יש להזין שם לסקיצה', 'exclamation-circle', '#ff9800');
+        return;
+    }
+    if (!content.trim()) {
+        showToast('יש להזין קוד לסקיצה', 'exclamation-circle', '#ff9800');
+        return;
+    }
+    personalSketches.push({ id: String(Date.now()), name, content, createdAt: Date.now() });
+    nameInput.value = '';
+    contentInput.value = '';
+    renderPersonalSketches();
+    saveToStorage();
+    showToast('סקיצה אישית נשמרה', 'bookmark', '#22c55e');
+}
+
+function deletePersonalSketch(sketchId) {
+    if (!confirm('למחוק את הסקיצה האישית?')) return;
+    personalSketches = personalSketches.filter(sketch => sketch.id !== sketchId);
+    renderPersonalSketches();
+    saveToStorage();
+    showToast('הסקיצה האישית נמחקה', 'trash', '#22c55e');
+}
+
+function createFileFromPersonalSketch(sketchId) {
+    const sketch = personalSketches.find(item => item.id === sketchId);
+    if (!sketch) return;
+    const fileName = `personal-sketch-${sketchCounter}.txt`;
+    sketchCounter += 1;
+    const nextFile = { id: Date.now(), name: fileName, content: sketch.content };
+    files.push(nextFile);
+    currentFileIndex = files.length - 1;
+    editor.value = nextFile.content;
+    setEditorLanguageByFilename(nextFile.name);
+    document.getElementById('current-file-name').textContent = nextFile.name;
     closeSketchModal();
     renderProjectsAndFiles();
     renderTabs();
     updateStats();
     livePreview();
     saveToStorage();
-    showToast(`נוספה סקיצה ${template.label} לקובץ הפעיל`, 'lightbulb', '#22c55e');
+    showToast(`נוצר קובץ מסקיצה אישית: ${sketch.name}`, 'file-circle-plus', '#22c55e');
 }
 
 function createFileFromSketch(type) {
@@ -2353,8 +2441,10 @@ function init() {
     try {
         const sf = localStorage.getItem('codesphere_files_v4');
         const sp = localStorage.getItem('codesphere_projects_v1');
+        const ssk = localStorage.getItem('codesphere_personal_sketches_v1');
         if (sf) files    = JSON.parse(sf);
         if (sp) projects = JSON.parse(sp);
+        if (ssk) personalSketches = JSON.parse(ssk);
     } catch(e) {}
 
     if (files.length === 0) {
