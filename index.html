@@ -922,8 +922,10 @@ function normalizeAIFile(file) {
     };
 }
 
-function upsertFilesFromAI(nextFiles) {
+function upsertFilesFromAI(nextFiles, options = {}) {
     if (!Array.isArray(nextFiles) || nextFiles.length === 0) return;
+    const preferredOpenName = String(options?.preferredOpenName || '').toLowerCase();
+
     nextFiles.forEach(nextFile => {
         const name = String(nextFile?.name || '').toLowerCase();
         const idx = files.findIndex(f => String(f.name || '').toLowerCase() === name);
@@ -934,12 +936,27 @@ function upsertFilesFromAI(nextFiles) {
             files.push(normalizeAIFile(nextFile));
         }
     });
+
+    if (preferredOpenName) {
+        const preferredIndex = files.findIndex(f => String(f.name || '').toLowerCase() === preferredOpenName);
+        if (preferredIndex >= 0) currentFileIndex = preferredIndex;
+    }
+
     renderProjectsAndFiles();
     renderTabs();
 
     if (currentFileIndex < 0) currentFileIndex = 0;
     openFile(currentFileIndex);
     saveToStorage();
+}
+
+function getCurrentOpenFileContext() {
+    if (currentFileIndex < 0 || currentFileIndex >= files.length) return null;
+    return {
+        index: currentFileIndex,
+        name: String(files[currentFileIndex]?.name || 'index.html'),
+        content: editor.value,
+    };
 }
 
 async function callAIWorker(route, payload) {
@@ -1754,13 +1771,21 @@ async function handleAIRequest() {
     aiMessages.scrollTop = aiMessages.scrollHeight;
 
     try {
+        const activeFile = getCurrentOpenFileContext();
+        if (activeFile?.index >= 0) {
+            files[activeFile.index].content = activeFile.content;
+        }
+
         const hasFiles = Array.isArray(files) && files.length > 0;
         const route = hasFiles ? '/api/chat' : '/api/generate';
         const payload = hasFiles
             ? {
                 message: prompt,
-                files: files.map(f => ({ name: f.name, content: f.content })),
+                files: activeFile
+                    ? [{ name: activeFile.name, content: activeFile.content }]
+                    : files.map(f => ({ name: f.name, content: f.content })),
                 history: aiConversationHistory.slice(-12),
+                activeFileName: activeFile?.name || null,
                 projectContext: {
                     projectNames: projects.map(p => p.name),
                     fileNames: files.map(f => f.name)
@@ -1777,6 +1802,7 @@ async function handleAIRequest() {
         pendingAIChange = {
             prompt,
             description,
+            activeFileName: activeFile?.name || null,
             files: result.files || []
         };
 
@@ -1794,7 +1820,9 @@ async function handleAIRequest() {
 
 function approveAIChange() {
     if (pendingAIChange && Array.isArray(pendingAIChange.files) && pendingAIChange.files.length) {
-        upsertFilesFromAI(pendingAIChange.files);
+        upsertFilesFromAI(pendingAIChange.files, {
+            preferredOpenName: pendingAIChange.activeFileName || ''
+        });
         livePreview();
         showToast('קבצי הפרויקט עודכנו מה-AI');
     }

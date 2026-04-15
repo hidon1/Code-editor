@@ -191,10 +191,15 @@ async function handleChat(request, env) {
   const body = await parseBody(request);
   if (!body.message?.trim()) return apiError('"message" is required', 400);
 
+  const activeFileName = String(body.activeFileName || "").trim();
   const filesBlock = (body.files ?? [])
     .map((f) => `=== ${f.name} ===\n${f.content || ""}`)
     .join("\n\n");
-  const context = filesBlock ? `קוד נוכחי:\n\n${filesBlock}\n\n---\n` : "";
+
+  const activeFileHint = activeFileName
+    ? `הקובץ הפעיל לעריכה: ${activeFileName}\nיש להחזיר אותו מעודכן בתוך files[].\n\n`
+    : "";
+  const context = filesBlock ? `${activeFileHint}קוד נוכחי:\n\n${filesBlock}\n\n---\n` : activeFileHint;
 
   const userMsg = `${context}${body.message.trim()}`;
   const messages = buildMessages(userMsg, body.history ?? []);
