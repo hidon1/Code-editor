@@ -266,21 +266,8 @@
         }
         .preview-title { display: flex; align-items: center; gap: 8px; font-weight: 700; white-space: nowrap; }
         .preview-controls { display: flex; align-items: center; gap: 5px; }
-        .preview-sketch-btn {
-            border: 1px solid var(--border);
-            background: var(--surface3);
-            color: var(--text);
-            border-radius: 8px;
-            padding: 6px 10px;
-            font-size: 12px;
-            font-weight: 600;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            transition: all 0.18s;
-        }
-        .preview-sketch-btn:hover { border-color: var(--primary); color: var(--primary); }
+        .sketch-personal-form { display: none; }
+        .sketch-personal-form.open { display: grid; }
         .preview-device-btn {
             width: 30px; height: 30px; border-radius: 8px;
             border: 1px solid var(--border); background: var(--surface2);
@@ -479,20 +466,20 @@
         <div class="logo"><div class="logo-icon"><i class="fas fa-cube"></i></div><span>CodeSphere</span></div>
     </div>
     <div class="nav-actions">
-        <button onclick="triggerFileUpload()" class="btn"><i class="fas fa-upload"></i><span>העלה</span></button>
+        <button onclick="triggerFileUpload()" class="btn" title="העלה"><i class="fas fa-upload"></i></button>
+        <button onclick="openSketchModal()" class="btn" title="סקיצות ותבניות">
+            <i class="fas fa-lightbulb"></i><span>סקיצה</span>
+        </button>
         <button onclick="quickSave()" class="btn-icon btn-save" title="שמור מהיר (Ctrl+Q)">
             <i class="fas fa-save"></i>
         </button>
         <button onclick="saveAsFile()" class="btn btn-primary" title="שמור בשם (Ctrl+S)">
             <i class="fas fa-file-arrow-down"></i><span>שמור</span>
         </button>
-        <button onclick="saveToFirebase()" class="btn btn-cloud" title="שמור בענן">
-            <span id="cloud-status-dot"></span>
-            <i class="fas fa-cloud-arrow-up"></i><span>ענן</span>
-        </button>
         <button onclick="createPublicLink()" class="btn btn-share">
             <i class="fas fa-share-alt"></i><span>שתף</span>
         </button>
+        <span id="cloud-status-dot" style="display:none;"></span>
         <div class="editor-toolbar">
             <i class="fas fa-search" style="color:var(--primary);"></i>
             <input type="text" id="code-search-input" placeholder="חיפוש בקוד...">
@@ -548,9 +535,6 @@
         <div class="preview-header">
             <div class="preview-title"><i class="fas fa-eye" style="color:var(--primary);"></i> תצוגה מקדימה</div>
             <div class="preview-controls">
-                <button class="preview-sketch-btn" onclick="openSketchModal()" title="סקיצות ותבניות">
-                    <i class="fas fa-lightbulb"></i><span>סקיצה</span>
-                </button>
                 <button class="preview-device-btn active" data-device="desktop" title="מחשב" onclick="setPreviewDevice('desktop')"><i class="fas fa-desktop"></i></button>
                 <button class="preview-device-btn" data-device="tablet" title="טאבלט" onclick="setPreviewDevice('tablet')"><i class="fas fa-tablet-alt"></i></button>
                 <button class="preview-device-btn" data-device="phone" title="טלפון" onclick="setPreviewDevice('phone')"><i class="fas fa-mobile-alt"></i></button>
@@ -774,13 +758,18 @@
         <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px;">
             בחר סוג קובץ כדי לקבל תבנית עם תגיות/פקודות מוכרות וללמוד תוך כדי ניסוי.
         </p>
-        <div style="display:grid;gap:8px;margin-bottom:14px;border:1px solid var(--border);border-radius:10px;padding:10px;background:var(--surface2);">
-            <strong style="color:var(--primary);"><i class="fas fa-user-pen"></i> סקיצה אישית</strong>
-            <input id="custom-sketch-name" class="modal-input" style="margin:0;" placeholder="שם סקיצה (למשל: כפתור אנימציה)">
-            <textarea id="custom-sketch-content" class="modal-input" style="margin:0;min-height:120px;resize:vertical;" placeholder="הכנס כאן קוד..."></textarea>
-            <button class="btn btn-primary" style="justify-content:center;" onclick="addPersonalSketch()">
-                <i class="fas fa-plus"></i> שמור סקיצה אישית
+        <div style="margin-bottom:14px;border:1px solid var(--border);border-radius:10px;padding:10px;background:var(--surface2);">
+            <button class="btn btn-primary" style="justify-content:center;width:100%;" onclick="togglePersonalSketchForm()">
+                <i class="fas fa-plus"></i> הוסף סקיצה אישית
             </button>
+            <div id="personal-sketch-form" class="sketch-personal-form" style="gap:8px;margin-top:10px;">
+                <strong style="color:var(--primary);"><i class="fas fa-user-pen"></i> סקיצה אישית</strong>
+                <input id="custom-sketch-name" class="modal-input" style="margin:0;" placeholder="שם סקיצה (למשל: כפתור אנימציה)">
+                <textarea id="custom-sketch-content" class="modal-input" style="margin:0;min-height:120px;resize:vertical;" placeholder="הכנס כאן קוד..."></textarea>
+                <button class="btn btn-primary" style="justify-content:center;" onclick="addPersonalSketch()">
+                    <i class="fas fa-save"></i> שמור סקיצה אישית
+                </button>
+            </div>
         </div>
         <div id="sketch-list" style="display:grid;gap:8px;"></div>
         <h4 style="margin:12px 0 8px;color:var(--primary);font-size:14px;"><i class="fas fa-bookmark"></i> סקיצה אישית שמורה</h4>
@@ -2286,8 +2275,16 @@ function openSketchModal() {
             </button>
         </div>
     `).join('');
+    const personalForm = document.getElementById('personal-sketch-form');
+    if (personalForm) personalForm.classList.remove('open');
     renderPersonalSketches();
     document.getElementById('sketch-modal').style.display = 'flex';
+}
+
+function togglePersonalSketchForm() {
+    const form = document.getElementById('personal-sketch-form');
+    if (!form) return;
+    form.classList.toggle('open');
 }
 
 function closeSketchModal() {
@@ -2312,7 +2309,7 @@ function renderPersonalSketches() {
     if (!container) return;
     if (!Array.isArray(personalSketches) || personalSketches.length === 0) {
         container.innerHTML = `<div style="font-size:12px;color:var(--text-muted);border:1px dashed var(--border);border-radius:8px;padding:10px;">
-            עדיין אין סקיצות אישיות. הוסף למעלה שם וקוד ולחץ "שמור סקיצה אישית".
+            עדיין אין סקיצות אישיות. לחץ על "הוסף סקיצה אישית" כדי להתחיל.
         </div>`;
         return;
     }
