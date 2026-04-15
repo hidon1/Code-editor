@@ -1065,21 +1065,53 @@ function normalizeAIFile(file) {
 function upsertFilesFromAI(nextFiles, options = {}) {
     if (!Array.isArray(nextFiles) || nextFiles.length === 0) return;
     const preferredOpenName = String(options?.preferredOpenName || '').toLowerCase();
+    const activeFileIdx = typeof options?.activeFileIndex === 'number' ? options.activeFileIndex : -1;
 
-    nextFiles.forEach(nextFile => {
-        const name = String(nextFile?.name || '').toLowerCase();
-        const idx = files.findIndex(f => String(f.name || '').toLowerCase() === name);
-        if (idx >= 0) {
-            files[idx].content = String(nextFile?.content || '');
-            files[idx].name = String(nextFile?.name || files[idx].name);
-        } else {
-            files.push(normalizeAIFile(nextFile));
+    // If we know which file was being discussed and none of the returned file names
+    // match it, map the most-appropriate returned file back onto the active slot.
+    const activeFile = (activeFileIdx >= 0 && activeFileIdx < files.length) ? files[activeFileIdx] : null;
+    const activeName = activeFile ? String(activeFile.name || '').toLowerCase() : '';
+    const hasNameMatch = activeName && nextFiles.some(f => String(f?.name || '').toLowerCase() === activeName);
+
+    if (activeFile && !hasNameMatch) {
+        const ext = activeName.split('.').pop();
+        // Prefer a file with the same extension, then any HTML, then first
+        const primary = nextFiles.find(f => String(f?.name || '').toLowerCase().endsWith('.' + ext))
+                     || nextFiles.find(f => String(f?.name || '').endsWith('.html'))
+                     || nextFiles[0];
+
+        files[activeFileIdx].content = String(primary.content || '');
+
+        // Upsert the remaining returned files normally (add/update by name)
+        nextFiles.filter(f => f !== primary).forEach(nextFile => {
+            const name = String(nextFile?.name || '').toLowerCase();
+            const idx = files.findIndex(f => String(f.name || '').toLowerCase() === name);
+            if (idx >= 0) {
+                files[idx].content = String(nextFile?.content || '');
+                files[idx].name = String(nextFile?.name || files[idx].name);
+            } else {
+                files.push(normalizeAIFile(nextFile));
+            }
+        });
+
+        currentFileIndex = activeFileIdx;
+    } else {
+        // Original path: match by returned file names
+        nextFiles.forEach(nextFile => {
+            const name = String(nextFile?.name || '').toLowerCase();
+            const idx = files.findIndex(f => String(f.name || '').toLowerCase() === name);
+            if (idx >= 0) {
+                files[idx].content = String(nextFile?.content || '');
+                files[idx].name = String(nextFile?.name || files[idx].name);
+            } else {
+                files.push(normalizeAIFile(nextFile));
+            }
+        });
+
+        if (preferredOpenName) {
+            const preferredIndex = files.findIndex(f => String(f.name || '').toLowerCase() === preferredOpenName);
+            if (preferredIndex >= 0) currentFileIndex = preferredIndex;
         }
-    });
-
-    if (preferredOpenName) {
-        const preferredIndex = files.findIndex(f => String(f.name || '').toLowerCase() === preferredOpenName);
-        if (preferredIndex >= 0) currentFileIndex = preferredIndex;
     }
 
     renderProjectsAndFiles();
@@ -1947,6 +1979,7 @@ async function handleAIRequest() {
             prompt,
             description,
             activeFileName: activeFile?.name || null,
+            activeFileIndex: activeFile?.index ?? -1,
             files: result.files || []
         };
 
@@ -1965,7 +1998,8 @@ async function handleAIRequest() {
 function approveAIChange() {
     if (pendingAIChange && Array.isArray(pendingAIChange.files) && pendingAIChange.files.length) {
         upsertFilesFromAI(pendingAIChange.files, {
-            preferredOpenName: pendingAIChange.activeFileName || ''
+            preferredOpenName: pendingAIChange.activeFileName || '',
+            activeFileIndex: pendingAIChange.activeFileIndex ?? -1
         });
         livePreview();
         showToast('קבצי הפרויקט עודכנו מה-AI');
