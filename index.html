@@ -493,6 +493,9 @@
         <button onclick="togglePreview()" class="btn" id="preview-btn">
             <i class="fas fa-eye"></i><span>תצוגה מקדימה</span>
         </button>
+        <button onclick="openSketchModal()" class="btn" title="סקיצות לימודיות ל-HTML/CSS/JS">
+            <i class="fas fa-lightbulb"></i><span>סקיצות</span>
+        </button>
         <!-- User chip (shown when logged in) -->
         <div class="user-chip" id="user-chip" style="display:none;" onclick="toggleSidebarMenu()">
             <div class="user-avatar" id="header-avatar">?</div>
@@ -749,6 +752,20 @@
     </div>
 </div>
 
+<!-- ═══ MODAL: Sketch Templates ═══ -->
+<div class="modal" id="sketch-modal">
+    <div class="modal-content" style="max-width:560px;">
+        <h3 style="margin-bottom:8px;color:var(--primary);"><i class="fas fa-lightbulb"></i> סקיצות ללמוד ולתרגל</h3>
+        <p style="color:var(--text-muted);font-size:13px;margin-bottom:12px;">
+            בחר סוג קובץ כדי לקבל תבנית עם תגיות/פקודות מוכרות וללמוד תוך כדי ניסוי.
+        </p>
+        <div id="sketch-list" style="display:grid;gap:8px;"></div>
+        <div class="modal-actions" style="margin-top:14px;">
+            <button class="btn" onclick="closeSketchModal()"><i class="fas fa-times"></i> סגור</button>
+        </div>
+    </div>
+</div>
+
 <!-- ═══ MODAL: Share Link ═══ -->
 <div class="modal" id="share-link-modal">
     <div class="modal-content share-link-modal-content" style="max-width:460px;">
@@ -867,6 +884,114 @@ const searchPanel = document.getElementById('search-results-panel');
 
 let searchMatches = [];
 let currentSearchMatchIndex = -1;
+let sketchCounter = 1;
+
+const SKETCH_TEMPLATES = [
+    {
+        type: 'html',
+        label: 'HTML בסיסי',
+        icon: 'fa-brands fa-html5',
+        color: '#f97316',
+        fileName: 'sketch.html',
+        content: `<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>תרגול HTML</title>
+</head>
+<body>
+    <header>
+        <h1>כותרת ראשית</h1>
+        <nav>
+            <a href="#">ראשי</a>
+            <a href="#">אודות</a>
+            <a href="#">צור קשר</a>
+        </nav>
+    </header>
+
+    <main>
+        <section>
+            <h2>סקשן ראשון</h2>
+            <p>כאן אפשר לתרגל תגיות כמו <strong>strong</strong> ו-<em>em</em>.</p>
+            <button type="button">כפתור לדוגמה</button>
+        </section>
+    </main>
+</body>
+</html>`
+    },
+    {
+        type: 'css',
+        label: 'CSS בסיסי',
+        icon: 'fa-brands fa-css3-alt',
+        color: '#38bdf8',
+        fileName: 'style.css',
+        content: `:root {
+    --primary: #2563eb;
+    --text: #1f2937;
+    --bg: #f8fafc;
+}
+
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+}
+
+.card {
+    max-width: 520px;
+    margin: 40px auto;
+    padding: 24px;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.08);
+}
+
+.btn {
+    border: none;
+    padding: 10px 16px;
+    border-radius: 8px;
+    background: var(--primary);
+    color: #fff;
+    cursor: pointer;
+}`
+    },
+    {
+        type: 'js',
+        label: 'JavaScript בסיסי',
+        icon: 'fa-brands fa-js',
+        color: '#facc15',
+        fileName: 'script.js',
+        content: `// תרגול פונקציות ותנאים
+function greet(name) {
+    return \`שלום \${name}!\`;
+}
+
+const button = document.querySelector('#demo-btn');
+
+if (button) {
+    button.addEventListener('click', () => {
+        const result = greet('לומד/ת');
+        console.log(result);
+        alert(result);
+    });
+}`
+    },
+    {
+        type: 'json',
+        label: 'JSON לדוגמה',
+        icon: 'fa-solid fa-code',
+        color: '#a78bfa',
+        fileName: 'data.json',
+        content: `{
+    "title": "פרויקט לימוד",
+    "author": "CodeSphere User",
+    "topics": ["HTML", "CSS", "JavaScript"],
+    "isPractice": true
+}`
+    }
+];
 
 const FIREBASE_CONFIG = {
     apiKey:            "AIzaSyCRT2Bgu1V4RAjhR5CiTSjAgkKJQmXh2vc",
@@ -1942,8 +2067,7 @@ function closeTab(i) {
 }
 
 function newFile() {
-    const f = { id: Date.now(), name: `קובץ-${files.length+1}.html`,
-        content: `<!DOCTYPE html>\n<html lang="he" dir="rtl">\n<head>\n    <meta charset="UTF-8">\n    <title>קובץ חדש</title>\n</head>\n<body>\n    <h1>שלום עולם</h1>\n</body>\n</html>` };
+    const f = { id: Date.now(), name: `קובץ-${files.length+1}.html`, content: '' };
     files.push(f); currentFileIndex = files.length - 1;
     editor.value = f.content;
     setEditorLanguageByFilename(f.name);
@@ -2118,6 +2242,76 @@ function closeShareProjectModal() { document.getElementById('share-project-modal
    MISC
 ═══════════════════════════════════════════════ */
 function formatCode() { showToast("הקוד עוצב"); }
+
+function openSketchModal() {
+    const list = document.getElementById('sketch-list');
+    list.innerHTML = SKETCH_TEMPLATES.map(template => `
+        <div style="border:1px solid var(--border);border-radius:10px;padding:10px;background:var(--surface2);">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                <i class="${template.icon}" style="color:${template.color};font-size:18px;"></i>
+                <strong>${template.label}</strong>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button class="btn" onclick="insertSketchIntoCurrent('${template.type}')">
+                    <i class="fas fa-pen"></i> הכנס לקובץ פתוח
+                </button>
+                <button class="btn btn-primary" onclick="createFileFromSketch('${template.type}')">
+                    <i class="fas fa-file-circle-plus"></i> צור קובץ חדש
+                </button>
+            </div>
+        </div>
+    `).join('');
+    document.getElementById('sketch-modal').style.display = 'flex';
+}
+
+function closeSketchModal() {
+    document.getElementById('sketch-modal').style.display = 'none';
+}
+
+function getSketchTemplate(type) {
+    return SKETCH_TEMPLATES.find(t => t.type === type) || null;
+}
+
+function insertSketchIntoCurrent(type) {
+    const template = getSketchTemplate(type);
+    if (!template) return;
+    if (currentFileIndex < 0) {
+        files.push({ id: Date.now(), name: `קובץ-${files.length + 1}.${type}`, content: '' });
+        currentFileIndex = files.length - 1;
+    }
+    files[currentFileIndex].content = template.content;
+    editor.value = template.content;
+    setEditorLanguageByFilename(files[currentFileIndex].name);
+    document.getElementById('current-file-name').textContent = files[currentFileIndex].name;
+    closeSketchModal();
+    renderProjectsAndFiles();
+    renderTabs();
+    updateStats();
+    livePreview();
+    saveToStorage();
+    showToast(`נוספה סקיצה ${template.label} לקובץ הפעיל`, 'lightbulb', '#22c55e');
+}
+
+function createFileFromSketch(type) {
+    const template = getSketchTemplate(type);
+    if (!template) return;
+    const fileName = `${template.fileName.replace('.', `-${sketchCounter}.`)}`;
+    sketchCounter += 1;
+    const nextFile = { id: Date.now(), name: fileName, content: template.content };
+    files.push(nextFile);
+    currentFileIndex = files.length - 1;
+    editor.value = nextFile.content;
+    setEditorLanguageByFilename(nextFile.name);
+    document.getElementById('current-file-name').textContent = nextFile.name;
+    closeSketchModal();
+    renderProjectsAndFiles();
+    renderTabs();
+    updateStats();
+    livePreview();
+    saveToStorage();
+    showToast(`נוצר קובץ סקיצה: ${fileName}`, 'file-circle-plus', '#22c55e');
+}
+
 function clearAllFiles() {
     if (!confirm("למחוק את כל הקבצים?")) return;
     files=[]; currentFileIndex=-1; editor.value='';
@@ -2164,9 +2358,7 @@ function init() {
     } catch(e) {}
 
     if (files.length === 0) {
-        files = [{ id:1, name:'index.html',
-            content:`<!DOCTYPE html>\n<html lang="he" dir="rtl">\n<head>\n    <meta charset="UTF-8">\n    <title>CodeSphere</title>\n</head>\n<body style="font-family:Arial;text-align:center;padding-top:100px;background:#0a0a0f;color:#e0e0ff;">\n    <h1 style="color:#00d4ff;">ברוך הבא ל-CodeSphere</h1>\n    <p>כניסה עם חשבון נדרשת לשמירה בענן ושיתוף</p>\n</body>\n</html>`
-        }];
+        files = [{ id:1, name:'index.html', content:'' }];
     }
 
     currentFileIndex = 0;
