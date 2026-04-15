@@ -180,6 +180,26 @@
         [data-theme="light"] .editor-wrapper { background:#f5f6fa; }
         #code-editor { position:absolute; inset:0; width:100%; height:100%; background:#080812; color:#cdd6f4; direction:ltr; }
         [data-theme="light"] #code-editor { background:#f5f6fa; color:#12122e; }
+        .fallback-editor {
+            width: 100%;
+            height: 100%;
+            border: none;
+            outline: none;
+            resize: none;
+            padding: 14px 16px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-size: 15px;
+            line-height: 1.5;
+            background: #080812;
+            color: #cdd6f4;
+            direction: ltr;
+            caret-color: #00d4ff;
+        }
+        [data-theme="light"] .fallback-editor {
+            background: #f5f6fa;
+            color: #12122e;
+            caret-color: #0055cc;
+        }
 
         /* Status bar */
         .status-bar {
@@ -1013,30 +1033,55 @@ const editorElement = document.getElementById('code-editor');
 let monacoEditor = null;
 let monacoReady = null;
 let editorBuffer = '';
+let fallbackTextarea = null;
 const editor = {
-    get value() { return monacoEditor ? monacoEditor.getValue() : editorBuffer; },
+    get value() {
+        if (monacoEditor) return monacoEditor.getValue();
+        if (fallbackTextarea) return fallbackTextarea.value;
+        return editorBuffer;
+    },
     set value(val) {
         const nextValue = val || '';
         editorBuffer = nextValue;
-        if (!monacoEditor) return;
-        if (monacoEditor.getValue() !== nextValue) monacoEditor.setValue(nextValue);
+        if (monacoEditor) {
+            if (monacoEditor.getValue() !== nextValue) monacoEditor.setValue(nextValue);
+            return;
+        }
+        if (fallbackTextarea && fallbackTextarea.value !== nextValue) fallbackTextarea.value = nextValue;
     },
-    focus() { if (monacoEditor) monacoEditor.focus(); },
+    focus() {
+        if (monacoEditor) monacoEditor.focus();
+        else if (fallbackTextarea) fallbackTextarea.focus();
+    },
     setSelectionRange(start, end) {
-        if (!monacoEditor || !window.monaco) return;
-        const model = monacoEditor.getModel();
-        if (!model) return;
-        const s = model.getPositionAt(start);
-        const e = model.getPositionAt(end);
-        monacoEditor.setSelection(new monaco.Range(s.lineNumber, s.column, e.lineNumber, e.column));
-        monacoEditor.revealRangeInCenter(monacoEditor.getSelection());
+        if (monacoEditor && window.monaco) {
+            const model = monacoEditor.getModel();
+            if (!model) return;
+            const s = model.getPositionAt(start);
+            const e = model.getPositionAt(end);
+            monacoEditor.setSelection(new monaco.Range(s.lineNumber, s.column, e.lineNumber, e.column));
+            monacoEditor.revealRangeInCenter(monacoEditor.getSelection());
+            return;
+        }
+        if (fallbackTextarea) fallbackTextarea.setSelectionRange(start, end);
     },
-    get scrollTop() { return monacoEditor ? monacoEditor.getScrollTop() : 0; },
-    set scrollTop(value) { if (monacoEditor) monacoEditor.setScrollTop(value); },
+    get scrollTop() {
+        if (monacoEditor) return monacoEditor.getScrollTop();
+        return fallbackTextarea ? fallbackTextarea.scrollTop : 0;
+    },
+    set scrollTop(value) {
+        if (monacoEditor) monacoEditor.setScrollTop(value);
+        else if (fallbackTextarea) fallbackTextarea.scrollTop = value;
+    },
     addEventListener(type, handler) {
-        if (!monacoEditor) return;
-        if (type === 'input') monacoEditor.onDidChangeModelContent(() => handler());
-        if (type === 'scroll') monacoEditor.onDidScrollChange(() => handler());
+        if (monacoEditor) {
+            if (type === 'input') monacoEditor.onDidChangeModelContent(() => handler());
+            if (type === 'scroll') monacoEditor.onDidScrollChange(() => handler());
+            return;
+        }
+        if (!fallbackTextarea) return;
+        if (type === 'input') fallbackTextarea.addEventListener('input', handler);
+        if (type === 'scroll') fallbackTextarea.addEventListener('scroll', handler);
     }
 };
 const preview       = document.getElementById('preview');
@@ -2935,8 +2980,27 @@ function registerHtmlSnippets() {
 function initMonacoEditor() {
     if (monacoReady) return monacoReady;
     monacoReady = new Promise(resolve => {
+        const activateFallbackEditor = () => {
+            if (fallbackTextarea) return;
+            fallbackTextarea = document.createElement('textarea');
+            fallbackTextarea.className = 'fallback-editor';
+            fallbackTextarea.setAttribute('aria-label', 'Fallback code editor');
+            fallbackTextarea.spellcheck = false;
+            fallbackTextarea.value = editorBuffer;
+            editorElement.replaceChildren(fallbackTextarea);
+            showToast('עורך מתקדם לא נטען — הופעל עורך חלופי', 'triangle-exclamation', '#f59e0b');
+            resolve();
+        };
+
+        if (!window.require) {
+            activateFallbackEditor();
+            return;
+        }
+
+        const fallbackTimer = setTimeout(activateFallbackEditor, 5000);
         window.require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs' } });
         window.require(['vs/editor/editor.main'], () => {
+            clearTimeout(fallbackTimer);
             registerHtmlSnippets();
             monacoEditor = monaco.editor.create(editorElement, {
                 value: editorBuffer,
@@ -2969,6 +3033,9 @@ function initMonacoEditor() {
                 monacoEditor.trigger('keyboard', 'editor.action.triggerSuggest', {});
             });
             resolve();
+        }, () => {
+            clearTimeout(fallbackTimer);
+            activateFallbackEditor();
         });
     });
     return monacoReady;
