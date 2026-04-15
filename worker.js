@@ -16,7 +16,7 @@
 const XAI_URL = "https://api.x.ai/v1/chat/completions";
 const MODEL = "grok-3-mini-fast";
 const MAX_TOKENS = 16000;
-const MAX_HISTORY = 12;
+const MAX_HISTORY = 200;
 
 const SYSTEM_PROMPT = `
 אתה מפתח אתרים AI מומחה בתוך עורך הקוד CodeSphere.

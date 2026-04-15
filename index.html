@@ -744,7 +744,7 @@
       </div>
       <div class="help-row">
         <div class="help-icon" style="background:rgba(123,94,255,0.12);color:var(--accent);"><i class="fas fa-arrow-right-arrow-left"></i></div>
-        <div><div style="font-weight:600;">מעבר בין קבצים</div><div class="help-desc">לחיצה על טאב מעלה פותח את הקובץ ומחליף את הקשר הצ'אט — כל קובץ / פרויקט שומר שיחה נפרדת</div></div>
+        <div><div style="font-weight:600;">מעבר בין קבצים</div><div class="help-desc">לחיצה על טאב פותחת הקשר צ'אט נפרד לקובץ הנוכחי. מעבר קובץ = מעבר שיחה</div></div>
       </div>
     </div>
 
@@ -753,11 +753,11 @@
       <div class="help-section-title"><i class="fas fa-robot"></i> AI צ'אט</div>
       <div class="help-row">
         <div class="help-icon" style="background:rgba(16,185,129,0.12);color:#10b981;"><i class="fas fa-comment-dots"></i></div>
-        <div><div style="font-weight:600;">שיחה רציפה</div><div class="help-desc">כל הודעה חדשה נשלחת עם כל ההיסטוריה הקודמת — ה-AI זוכר מה נאמר ומה נבנה</div></div>
+        <div><div style="font-weight:600;">שיחה רציפה</div><div class="help-desc">כל הודעה חדשה נשלחת לשרת עם כל ההיסטוריה של הקובץ הפעיל, כך שה-AI מקבל הקשר מלא והמשך שיחה אמיתי</div></div>
       </div>
       <div class="help-row">
         <div class="help-icon" style="background:rgba(0,212,255,0.12);color:var(--primary);"><i class="fas fa-layer-group"></i></div>
-        <div><div style="font-weight:600;">הקשר פרויקט</div><div class="help-desc">כשקובץ שייך לפרויקט — ה-AI מקבל את כל קבצי הפרויקט. ביקשת לשנות צבע ב-CSS מתוך דף HTML? ה-AI ישנה את ה-CSS גם</div></div>
+        <div><div style="font-weight:600;">הקשר פרויקט מלא</div><div class="help-desc">אם הקובץ שייך לפרויקט, כל קבצי הפרויקט נשלחים יחד ל-AI כיחידה אחת. כך אפשר לבקש שינוי ב-HTML ולקבל עדכון גם ב-CSS/JS</div></div>
       </div>
       <div class="help-row">
         <div class="help-icon" style="background:rgba(255,85,85,0.12);color:#ff5555;"><i class="fas fa-trash-alt"></i></div>
@@ -769,7 +769,11 @@
       </div>
       <div class="help-row">
         <div class="help-icon" style="background:rgba(0,212,255,0.12);color:var(--primary);"><i class="fas fa-cloud"></i></div>
-        <div><div style="font-weight:600;">שמירת שיחות בענן</div><div class="help-desc">היסטוריית כל השיחות נשמרת בענן אם מחובר לחשבון — וטוענת בפתיחה מכל מכשיר</div></div>
+        <div><div style="font-weight:600;">שמירת שיחות בענן</div><div class="help-desc">לכל קובץ נשמרת היסטוריית צ'אט בענן. בפתיחה מחדש ההיסטוריה נטענת אוטומטית לכל קובץ</div></div>
+      </div>
+      <div class="help-row">
+        <div class="help-icon" style="background:rgba(59,130,246,0.12);color:#3b82f6;"><i class="fas fa-sitemap"></i></div>
+        <div><div style="font-weight:600;">סכמת עבודה</div><div class="help-desc">קובץ פתוח ➜ מזהה שיחה ייחודי ➜ שליחת היסטוריה + תוכן קובץ/פרויקט ➜ תשובת AI ➜ אישור ➜ עדכון קבצים ושמירה בענן</div></div>
       </div>
     </div>
 
@@ -1223,8 +1227,7 @@ function openAISettings() {
 function getChatKey() {
     if (currentFileIndex < 0 || currentFileIndex >= files.length) return null;
     const file = files[currentFileIndex];
-    const project = projects.find(p => p.fileIds.includes(file.id));
-    return project ? `project_${project.id}` : `file_${file.id}`;
+    return `file_${file.id}`;
 }
 
 function getChatHistory() {
@@ -1270,7 +1273,8 @@ function renderAIMessages() {
     const ctxBar = document.getElementById('ai-context-bar');
     if (ctx) {
         if (ctx.isProject) {
-            ctxLabel.textContent = `פרויקט: ${ctx.projectName} (${ctx.files.length} קבצים)`;
+            const activeFileName = files[currentFileIndex]?.name || 'קובץ לא ידוע';
+            ctxLabel.textContent = `${activeFileName} · פרויקט: ${ctx.projectName} (${ctx.files.length} קבצים נשלחים ל-AI)`;
             ctxBar.querySelector('i').className = 'fas fa-folder-open';
             ctxBar.style.borderRight = '2px solid #f59e0b';
         } else {
@@ -1288,7 +1292,7 @@ function renderAIMessages() {
         const msg = document.createElement('div');
         msg.className = 'ai-message ai-bot';
         msg.textContent = ctx?.isProject
-            ? `שלום! פרויקט "${ctx.projectName}" פתוח — ה-AI מקבל את כל ${ctx.files.length} הקבצים. מה לשנות?`
+            ? `שלום! השיחה הזו שייכת לקובץ הפעיל, אבל ה-AI מקבל גם את כל פרויקט "${ctx.projectName}" (${ctx.files.length} קבצים). מה לשנות?`
             : 'שלום! מה תרצה שאשנה בקוד?';
         aiMessages.appendChild(msg);
     } else {
@@ -2226,8 +2230,9 @@ async function handleAIRequest() {
         // Determine context: project (all files) or single file
         const ctx = getProjectContextFiles();
         const ctxFiles = ctx ? ctx.files.map(f => ({ name: f.name, content: f.content })) : [];
-        const history = getChatHistory().slice(-12);
+        const history = getChatHistory();
         const hasFiles = ctxFiles.length > 0;
+        pushChatHistory('user', prompt);
 
         const route = hasFiles ? '/api/chat' : '/api/generate';
         const payload = hasFiles
@@ -2252,22 +2257,29 @@ async function handleAIRequest() {
             files: result.files || []
         };
 
+        pushChatHistory('assistant', description);
         loading.textContent = `${description} — אשר כדי להחיל`;
         document.getElementById('ai-suggestion-text').innerHTML =
             `<strong>בקשה:</strong><br>${prompt}<br><br><strong>סיכום:</strong><br>${description}`;
         document.getElementById('confirm-modal').style.display = 'flex';
+        renderAIMessages();
     } catch (error) {
+        const currentHistory = getChatHistory();
+        if (currentHistory.length > 0) {
+            const last = currentHistory[currentHistory.length - 1];
+            if (last.role === 'user' && last.content === prompt) {
+                currentHistory.pop();
+                saveChatHistoriesToStorage();
+            }
+        }
         loading.textContent = `שגיאה: ${error?.message || 'נכשל בעיבוד הבקשה'}`;
         showToast('ה-AI נכשל, בדוק כתובת Worker או מפתח API', 'triangle-exclamation', '#ff5555');
+        renderAIMessages();
     }
 }
 
 function approveAIChange() {
     if (pendingAIChange && Array.isArray(pendingAIChange.files) && pendingAIChange.files.length) {
-        // Save history before upsert so getChatKey() still resolves correctly
-        pushChatHistory('user', pendingAIChange.prompt);
-        pushChatHistory('assistant', pendingAIChange.description);
-
         upsertFilesFromAI(pendingAIChange.files, {
             preferredOpenName: pendingAIChange.activeFileName || '',
             activeFileIndex: pendingAIChange.activeFileIndex ?? -1
