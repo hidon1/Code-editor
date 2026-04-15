@@ -1023,9 +1023,11 @@ function getBaseUrl() {
     return 'https://code-editor-4c979.web.app/';
 }
 
+const DEFAULT_AI_BASE = 'https://cold-cloud-8170.zm0548407450.workers.dev';
+
 function resolveAIBase() {
     const raw = String(localStorage.getItem('codesphere_ai_api_base') || '').trim();
-    if (!raw || raw.includes('YOUR-WORKER')) return '';
+    if (!raw || raw.includes('YOUR-WORKER')) return DEFAULT_AI_BASE;
     return raw
         .replace(/\/+(api\/(chat|generate|improve|health))\/?$/i, '')
         .replace(/\/+$/, '');
