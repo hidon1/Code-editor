@@ -189,13 +189,14 @@
         }
         .status-bar-sep { width: 1px; height: 14px; background: var(--border); }
         .ai-fab {
-            width: 22px; height: 22px; border-radius: 50%;
-            border: none; display: inline-flex; align-items: center; justify-content: center;
+            min-width: 90px; height: 34px; border-radius: 10px;
+            border: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
             background: linear-gradient(135deg, #10b981, #059669);
-            color: #fff; cursor: pointer; font-size: 10px;
-            box-shadow: 0 2px 8px rgba(16,185,129,0.4); transition: all 0.2s;
+            color: #fff; cursor: pointer; font-size: 13px; font-weight: 700;
+            box-shadow: 0 4px 16px rgba(16,185,129,0.45); transition: all 0.2s;
+            padding: 0 14px;
         }
-        .ai-fab:hover { transform: scale(1.15); box-shadow: 0 4px 14px rgba(16,185,129,0.5); }
+        .ai-fab:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(16,185,129,0.52); }
 
         /* FILES SIDEBAR */
         .files-sidebar {
@@ -308,13 +309,19 @@
         .ai-message { padding: 12px 16px; border-radius: 14px; max-width: 86%; font-size: 13.5px; line-height: 1.5; }
         .ai-user { align-self: flex-end; background: linear-gradient(135deg, var(--primary), #00a8cc); color: #000; font-weight: 500; }
         .ai-bot { align-self: flex-start; background: var(--surface3); border: 1px solid var(--border); }
-        .ai-input-area { padding: 13px; background: var(--surface2); border-top: 1px solid var(--border); flex-shrink: 0; }
+        .ai-input-area { padding: 13px; background: var(--surface2); border-top: 1px solid var(--border); flex-shrink: 0; display:flex; gap:8px; align-items:center; }
         .ai-input-area input {
-            width: 100%; padding: 11px 16px; border: 1px solid var(--border);
+            flex: 1; padding: 11px 16px; border: 1px solid var(--border);
             background: var(--surface); border-radius: 9999px;
             color: var(--text); outline: none; font-size: 13.5px; font-family: 'Heebo', sans-serif; transition: border-color 0.2s;
         }
         .ai-input-area input:focus { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-dim); }
+        .ai-send-btn {
+            border: none; border-radius: 9999px; padding: 10px 14px;
+            background: linear-gradient(135deg, var(--primary), #00a8cc); color: #000;
+            font-weight: 700; cursor: pointer; min-width: 92px;
+        }
+        .ai-send-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
         /* HAMBURGER MENU */
         .sidebar-menu {
@@ -467,6 +474,9 @@
     </div>
     <div class="nav-actions">
         <button onclick="triggerFileUpload()" class="btn" title="העלה"><i class="fas fa-upload"></i></button>
+        <button class="ai-fab" onclick="toggleAIPanel()" title="AI בונה אתרים">
+            <i class="fas fa-robot"></i><span>AI</span>
+        </button>
         <button onclick="openSketchModal()" class="btn" title="סקיצות ותבניות">
             <i class="fas fa-lightbulb"></i><span>סקיצה</span>
         </button>
@@ -483,8 +493,8 @@
         <div class="editor-toolbar">
             <i class="fas fa-search" style="color:var(--primary);"></i>
             <input type="text" id="code-search-input" placeholder="חיפוש בקוד...">
-            <button class="btn" onclick="goToSearchMatch(1)"><i class="fas fa-chevron-down"></i></button>
-            <div id="search-inline-count" style="font-size:12px;color:var(--text-muted);">0 תוצאות</div>
+            <button class="btn" id="search-next-btn" onclick="goToSearchMatch(1)" style="display:none;"><i class="fas fa-chevron-down"></i></button>
+            <div id="search-inline-count" style="font-size:12px;color:var(--text-muted);display:none;"></div>
             <div class="search-results-panel" id="search-results-panel">
                 <label for="code-replace-input" style="font-size:12px;color:var(--text-muted);">החלף ל</label>
                 <input type="text" id="code-replace-input" placeholder="טקסט חלופי...">
@@ -524,9 +534,6 @@
             <div><i class="fas fa-font" style="font-size:10px;margin-left:4px;"></i> <span id="char-count">0</span> תווים</div>
             <span class="status-bar-sep"></span>
             <div id="current-file-name" style="color:var(--text);font-weight:600;">index.html</div>
-            <button class="ai-fab" onclick="toggleAIPanel()" title="AI בונה אתרים" style="margin-right:auto;">
-                <i class="fas fa-robot"></i>
-            </button>
         </div>
     </div>
 
@@ -590,6 +597,7 @@
     <div class="ai-input-area">
         <input type="text" id="ai-input" placeholder="לדוגמה: הוסף כפתור כחול..."
                onkeypress="if(event.key==='Enter') handleAIRequest()">
+        <button id="ai-send-btn" class="ai-send-btn" onclick="handleAIRequest()"><i class="fas fa-paper-plane"></i> שלח</button>
     </div>
 </div>
 
@@ -620,20 +628,8 @@
     <div class="menu-item" onclick="openAISettings();toggleSidebarMenu()">
         <i class="fas fa-key" style="color:#10b981;"></i><span>הגדרות AI (Worker/API Key)</span>
     </div>
-    <div class="menu-item" onclick="requireAuthAction(openShareProjectModal);toggleSidebarMenu()">
-        <i class="fas fa-share-alt" style="color:#7b5eff;"></i><span>שתף פרויקט בענן</span>
-    </div>
-    <div class="menu-item" onclick="requireAuthAction(createPublicLink);toggleSidebarMenu()">
-        <i class="fas fa-link" style="color:var(--primary);"></i><span>שתף קובץ נוכחי</span>
-    </div>
-    <div class="menu-item" onclick="requireAuthAction(saveToFirebase);toggleSidebarMenu()">
-        <i class="fas fa-cloud-arrow-up" style="color:#ff9800;"></i><span>שמור כל הפרויקטים בענן</span>
-    </div>
-    <div class="menu-item" onclick="requireAuthAction(showCloudFiles);toggleSidebarMenu()">
-        <i class="fas fa-cloud-arrow-down" style="color:#22c55e;"></i><span>טעון פרויקטים מהענן</span>
-    </div>
-    <div class="menu-item" onclick="clearAllFiles();toggleSidebarMenu()">
-        <i class="fas fa-trash-alt" style="color:#ff5555;"></i><span>נקה את כל הקבצים</span>
+    <div class="menu-item" onclick="openGuideModal();toggleSidebarMenu()">
+        <i class="fas fa-book-open" style="color:#22c55e;"></i><span>מדריך שימוש וכללים</span>
     </div>
 </div>
 
@@ -739,6 +735,37 @@
     </div>
 </div>
 
+<!-- ═══ MODAL: Guide ═══ -->
+<div class="modal" id="guide-modal">
+    <div class="modal-content" style="max-width:760px;line-height:1.8;">
+        <h2 style="color:var(--primary);margin-bottom:12px;"><i class="fas fa-book-open"></i> מדריך שימוש ב-CodeSphere</h2>
+        <h3 style="margin:10px 0 6px;">כללי AI והקשר שיחה</h3>
+        <ul style="padding-right:20px;color:var(--text-muted);font-size:14px;">
+            <li>לכל קובץ יש שיחה נפרדת הנשמרת מקומית וגם בענן.</li>
+            <li>במעבר בין קבצים, חלון הצ'אט מתחלף להיסטוריה של הקובץ הפעיל.</li>
+            <li>אם הקובץ שייך לפרויקט, כל קבצי הפרויקט נשלחים יחד ל-AI כדי לאפשר שינוי חוצה קבצים.</li>
+            <li>בכל בקשה נשלחת גם היסטוריית השיחה העדכנית כדי לשמור רצף והקשר.</li>
+        </ul>
+        <h3 style="margin:10px 0 6px;">מה אפשר לבצע במערכת</h3>
+        <ul style="padding-right:20px;color:var(--text-muted);font-size:14px;">
+            <li><strong>כפתור AI:</strong> פותח צ'אט חכם לשינוי קוד, יצירת קבצים ושדרוג עיצוב.</li>
+            <li><strong>ניהול קבצים/פרויקטים:</strong> יצירה, שינוי שמות, שיוך קבצים לפרויקט, ומעבר מהיר.</li>
+            <li><strong>תצוגה מקדימה:</strong> צפייה חיה באתר במצבי מחשב/טאבלט/נייד.</li>
+            <li><strong>חיפוש והחלפה:</strong> בתוך הקובץ הפעיל בלבד, כולל מעבר בין תוצאות.</li>
+            <li><strong>שמירה בענן:</strong> סביבת העבודה נשמרת ומסונכרנת לחשבון המחובר.</li>
+        </ul>
+        <h3 style="margin:10px 0 6px;">מבנה המסכים</h3>
+        <ul style="padding-right:20px;color:var(--text-muted);font-size:14px;">
+            <li>סרגל עליון: פעולות מהירות (העלאה, AI, סקיצה, שמירה, שיתוף, חיפוש).</li>
+            <li>אזור עורך: טאבים, קוד, ושורת סטטוס.</li>
+            <li>צד ימין: חלון AI וצד-תיקיות לפרויקטים/קבצים.</li>
+        </ul>
+        <div class="modal-actions" style="margin-top:16px;">
+            <button onclick="closeGuideModal()" class="btn btn-primary">סגור מדריך</button>
+        </div>
+    </div>
+</div>
+
 <!-- ═══ MODAL: AI Confirm ═══ -->
 <div class="modal" id="confirm-modal">
     <div class="modal-content">
@@ -833,7 +860,10 @@ let currentFileIndex = -1;
 let isPreviewOpen = false, isAIPanelOpen = false, isFilesSidebarOpen = false;
 let currentPreviewDevice = 'desktop';
 let pendingAIChange = null;
+let aiConversationsByContext = {};
 let aiConversationHistory = [];
+let activeAIContextKey = 'global';
+let isAIRequestInFlight = false;
 let _fb = null;        // Firebase helpers
 let _auth = null;      // Firebase auth instance
 let currentUser = null;
@@ -895,6 +925,9 @@ const aiMessages    = document.getElementById('ai-messages');
 const codeSearchInput = document.getElementById('code-search-input');
 const codeReplaceInput = document.getElementById('code-replace-input');
 const searchPanel = document.getElementById('search-results-panel');
+const searchNextBtn = document.getElementById('search-next-btn');
+const searchInlineCount = document.getElementById('search-inline-count');
+const aiSendBtn = document.getElementById('ai-send-btn');
 
 let searchMatches = [];
 let currentSearchMatchIndex = -1;
@@ -1131,6 +1164,41 @@ function getCurrentOpenFileContext() {
         name: String(files[currentFileIndex]?.name || 'index.html'),
         content: editor.value,
     };
+}
+
+function getProjectForFile(fileId) {
+    return projects.find(p => Array.isArray(p.fileIds) && p.fileIds.includes(fileId)) || null;
+}
+
+function getAIContextKey() {
+    const currentFile = files[currentFileIndex];
+    if (!currentFile) return 'global';
+    return `file:${currentFile.id}`;
+}
+
+function ensureConversationLoadedForCurrentFile() {
+    activeAIContextKey = getAIContextKey();
+    aiConversationHistory = Array.isArray(aiConversationsByContext[activeAIContextKey])
+        ? [...aiConversationsByContext[activeAIContextKey]]
+        : [];
+    renderAIConversation();
+}
+
+function persistAIConversation() {
+    aiConversationsByContext[activeAIContextKey] = [...aiConversationHistory];
+}
+
+function renderAIConversation() {
+    aiMessages.innerHTML = '';
+    if (!aiConversationHistory.length) {
+        const welcome = document.createElement('div');
+        welcome.className = 'ai-message ai-bot';
+        welcome.textContent = 'שלום! מה תרצה שאשנה בקוד?';
+        aiMessages.appendChild(welcome);
+        return;
+    }
+    aiConversationHistory.forEach(msg => addAIMessage(msg.role === 'user' ? 'user' : 'bot', msg.content, false));
+    aiMessages.scrollTop = aiMessages.scrollHeight;
 }
 
 async function callAIWorker(route, payload) {
@@ -1487,10 +1555,13 @@ function recalculateSearchResults(keepIndex = false, forceClosePanel = false) {
 }
 
 function updateSearchUI(forceClosePanel = false) {
+    const hasSearchText = codeSearchInput.value.trim().length > 0;
     const total = searchMatches.length;
     const current = total > 0 ? currentSearchMatchIndex + 1 : 0;
-    document.getElementById('search-inline-count').textContent = total === 0 ? '0 תוצאות' : `${current}/${total} תוצאות`;
-    searchPanel.classList.toggle('show', !forceClosePanel && codeSearchInput.value.trim().length > 0);
+    searchInlineCount.textContent = total > 0 ? `${current}/${total} תוצאות` : '';
+    searchInlineCount.style.display = hasSearchText && total > 0 ? 'block' : 'none';
+    searchNextBtn.style.display = hasSearchText ? 'inline-flex' : 'none';
+    searchPanel.classList.toggle('show', !forceClosePanel && hasSearchText);
     if (currentSearchMatchIndex >= 0 && total > 0) {
         const currentMatch = searchMatches[currentSearchMatchIndex];
         editor.focus();
@@ -1535,6 +1606,7 @@ function saveToStorage() {
         localStorage.setItem('codesphere_files_v4', JSON.stringify(files));
         localStorage.setItem('codesphere_projects_v1', JSON.stringify(projects));
         localStorage.setItem('codesphere_personal_sketches_v1', JSON.stringify(personalSketches));
+        localStorage.setItem('codesphere_ai_conversations_v1', JSON.stringify(aiConversationsByContext));
     } catch(e) {}
     if (!isApplyingRemoteWorkspace) scheduleCloudAutoSave();
 }
@@ -1555,7 +1627,8 @@ function getWorkspaceSignature(workspaceData) {
             content: f.content || ''
         })),
         projects: Array.isArray(workspaceData?.projects) ? workspaceData.projects : [],
-        personalSketches: Array.isArray(workspaceData?.personalSketches) ? workspaceData.personalSketches : []
+        personalSketches: Array.isArray(workspaceData?.personalSketches) ? workspaceData.personalSketches : [],
+        aiConversationsByContext: workspaceData?.aiConversationsByContext || {}
     };
     return JSON.stringify(normalized);
 }
@@ -1572,6 +1645,7 @@ function applyWorkspaceData(workspaceData) {
         }));
         projects = Array.isArray(workspaceData?.projects) ? workspaceData.projects : [];
         personalSketches = Array.isArray(workspaceData?.personalSketches) ? workspaceData.personalSketches : [];
+        aiConversationsByContext = workspaceData?.aiConversationsByContext || {};
 
         if (files.length === 0) {
             files = [{ id: 1, name: 'index.html', content: '' }];
@@ -1590,6 +1664,7 @@ function applyWorkspaceData(workspaceData) {
 
         renderProjectsAndFiles();
         renderTabs();
+        ensureConversationLoadedForCurrentFile();
         updateStats();
         saveToStorage();
         lastWorkspaceSignature = nextSignature;
@@ -1611,7 +1686,7 @@ async function startWorkspaceSync(uid) {
         applyWorkspaceData(cloudWorkspace);
         showToast("הסביבה נטענה מהענן בפתיחת המכשיר", "cloud-arrow-down", "#22c55e");
     } else if (files.length > 0 || projects.length > 0) {
-        await _fb.saveWorkspace(uid, { files, projects, personalSketches });
+        await _fb.saveWorkspace(uid, { files, projects, personalSketches, aiConversationsByContext });
         showToast("הועלה גיבוי ראשון לענן", "cloud-arrow-up", "#22c55e");
     }
 }
@@ -1634,8 +1709,8 @@ async function saveToFirebase(options = {}) {
     dot.className = 'saving';
     try {
         if (!silent) showToast("שומר בענן...", "cloud-arrow-up", "#ff9800");
-        await _fb.saveWorkspace(currentUser.uid, { files, projects, personalSketches });
-        lastWorkspaceSignature = getWorkspaceSignature({ files, projects, personalSketches });
+        await _fb.saveWorkspace(currentUser.uid, { files, projects, personalSketches, aiConversationsByContext });
+        lastWorkspaceSignature = getWorkspaceSignature({ files, projects, personalSketches, aiConversationsByContext });
         dot.className = 'ok';
         if (!silent) showToast("נשמר בענן!", "cloud-arrow-up", "#22c55e");
     } catch(e) {
@@ -1683,6 +1758,8 @@ async function loadCloudWorkspace() {
 }
 
 function closeCloudModal() { document.getElementById('cloud-modal').style.display = 'none'; }
+function openGuideModal() { document.getElementById('guide-modal').style.display = 'flex'; }
+function closeGuideModal() { document.getElementById('guide-modal').style.display = 'none'; }
 
 /* ═══════════════════════════════════════════════
    SHARE (require auth)
@@ -1926,20 +2003,26 @@ function toggleAIPanel() {
     document.getElementById('ai-panel').classList.toggle('active', isAIPanelOpen);
 }
 
-function addAIMessage(type, text) {
+function addAIMessage(type, text, autoScroll = true) {
     const msg = document.createElement('div');
     msg.className = `ai-message ${type === 'user' ? 'ai-user' : 'ai-bot'}`;
     msg.textContent = text;
     aiMessages.appendChild(msg);
-    aiMessages.scrollTop = aiMessages.scrollHeight;
+    if (autoScroll) aiMessages.scrollTop = aiMessages.scrollHeight;
 }
 
 async function handleAIRequest() {
     const input = document.getElementById('ai-input');
     const prompt = input.value.trim();
-    if (!prompt) return;
+    if (!prompt || isAIRequestInFlight) return;
+    isAIRequestInFlight = true;
+    if (aiSendBtn) aiSendBtn.disabled = true;
+    input.disabled = true;
 
     addAIMessage('user', prompt);
+    aiConversationHistory.push({ role: 'user', content: prompt });
+    persistAIConversation();
+    saveToStorage();
     input.value = '';
 
     const loading = document.createElement('div');
@@ -1954,19 +2037,31 @@ async function handleAIRequest() {
             files[activeFile.index].content = activeFile.content;
         }
 
-        const hasFiles = Array.isArray(files) && files.length > 0;
+        const activeProject = activeFile ? getProjectForFile(files[activeFile.index]?.id) : null;
+        const relevantFiles = activeProject
+            ? files.filter(f => activeProject.fileIds.includes(f.id))
+            : files;
+        const hasFiles = Array.isArray(relevantFiles) && relevantFiles.length > 0;
+        const projectBundle = activeProject
+            ? [{
+                name: `${activeProject.name}.project.txt`,
+                content: relevantFiles.map(f => `=== ${f.name} ===\n${f.content || ''}`).join('\n\n')
+            }]
+            : [];
         const route = hasFiles ? '/api/chat' : '/api/generate';
         const payload = hasFiles
             ? {
                 message: prompt,
-                files: activeFile
-                    ? [{ name: activeFile.name, content: activeFile.content }]
-                    : files.map(f => ({ name: f.name, content: f.content })),
-                history: aiConversationHistory.slice(-12),
+                files: [
+                    ...relevantFiles.map(f => ({ name: f.name, content: f.content })),
+                    ...projectBundle
+                ],
+                history: aiConversationHistory.slice(-40),
                 activeFileName: activeFile?.name || null,
                 projectContext: {
                     projectNames: projects.map(p => p.name),
-                    fileNames: files.map(f => f.name)
+                    fileNames: relevantFiles.map(f => f.name),
+                    activeProjectName: activeProject?.name || null
                 }
             }
             : {
@@ -1985,8 +2080,9 @@ async function handleAIRequest() {
             files: result.files || []
         };
 
-        aiConversationHistory.push({ role: 'user', content: prompt });
         aiConversationHistory.push({ role: 'assistant', content: description });
+        persistAIConversation();
+        saveToStorage();
 
         loading.textContent = `${description} אשר כדי להחיל את השינוי.`;
         document.getElementById('ai-suggestion-text').innerHTML = `<strong>בקשה:</strong><br>${prompt}<br><br><strong>סיכום:</strong><br>${description}`;
@@ -1994,6 +2090,10 @@ async function handleAIRequest() {
     } catch (error) {
         loading.textContent = `שגיאה: ${error?.message || 'נכשל בעיבוד הבקשה'}`;
         showToast('ה-AI נכשל, בדוק כתובת Worker או מפתח API', 'triangle-exclamation', '#ff5555');
+    } finally {
+        isAIRequestInFlight = false;
+        if (aiSendBtn) aiSendBtn.disabled = false;
+        input.disabled = false;
     }
 }
 
@@ -2098,12 +2198,16 @@ function renderTabs() {
 ═══════════════════════════════════════════════ */
 function openFile(i) {
     if (i < 0 || i >= files.length) return;
+    if (currentFileIndex >= 0 && currentFileIndex < files.length) {
+        persistAIConversation();
+    }
     currentFileIndex = i;
     editor.value = files[i].content || '';
     setEditorLanguageByFilename(files[i].name);
     document.getElementById('current-file-name').textContent = files[i].name;
     renderProjectsAndFiles(); renderTabs(); livePreview(); updateStats();
     recalculateSearchResults();
+    ensureConversationLoadedForCurrentFile();
 }
 
 function closeTab(i) {
@@ -2130,6 +2234,7 @@ function newFile() {
     renderProjectsAndFiles(); renderTabs(); saveToStorage();
     updateStats();
     recalculateSearchResults();
+    ensureConversationLoadedForCurrentFile();
 }
 
 function triggerFileUpload() {
@@ -2147,6 +2252,7 @@ function triggerFileUpload() {
             renderProjectsAndFiles(); renderTabs(); livePreview(); saveToStorage();
             updateStats();
             recalculateSearchResults();
+            ensureConversationLoadedForCurrentFile();
             showToast(`קובץ נטען: ${file.name}`);
         };
         reader.readAsText(file);
@@ -2461,6 +2567,7 @@ function setupDragAndDrop() {
             renderProjectsAndFiles(); renderTabs(); livePreview(); saveToStorage();
             updateStats();
             recalculateSearchResults();
+            ensureConversationLoadedForCurrentFile();
             showToast(`קובץ נטען: ${file.name}`);
         };
         reader.readAsText(file);
@@ -2475,9 +2582,11 @@ function init() {
         const sf = localStorage.getItem('codesphere_files_v4');
         const sp = localStorage.getItem('codesphere_projects_v1');
         const ssk = localStorage.getItem('codesphere_personal_sketches_v1');
+        const sach = localStorage.getItem('codesphere_ai_conversations_v1');
         if (sf) files    = JSON.parse(sf);
         if (sp) projects = JSON.parse(sp);
         if (ssk) personalSketches = JSON.parse(ssk);
+        if (sach) aiConversationsByContext = JSON.parse(sach);
     } catch(e) {}
 
     if (files.length === 0) {
@@ -2487,12 +2596,14 @@ function init() {
     currentFileIndex = 0;
     document.getElementById('current-file-name').textContent = files[0].name;
     renderProjectsAndFiles(); renderTabs();
+    ensureConversationLoadedForCurrentFile();
     codeSearchInput.addEventListener('keydown', e => {
         if (e.key === 'Enter') {
             e.preventDefault();
             recalculateSearchResults();
         }
     });
+    codeSearchInput.addEventListener('input', () => recalculateSearchResults(true));
     codeReplaceInput.addEventListener('keydown', e => {
         if (e.key === 'Enter') {
             e.preventDefault();
