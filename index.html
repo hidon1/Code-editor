@@ -356,6 +356,17 @@
             transition: all 0.2s; box-shadow: 0 3px 12px rgba(0,212,255,0.3);
         }
         .ai-send-btn:hover { transform: scale(1.08); box-shadow: 0 5px 18px rgba(0,212,255,0.5); }
+        .ai-send-btn:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+            filter: grayscale(0.2);
+        }
+        .ai-input-row input:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
         .ai-input-row { display: flex; gap: 8px; align-items: center; }
         .ai-input-row input { flex: 1; }
 
@@ -658,7 +669,7 @@
         <div class="ai-input-row">
             <input type="text" id="ai-input" placeholder="תאר מה לשנות / לבנות..."
                    onkeypress="if(event.key==='Enter') handleAIRequest()">
-            <button class="ai-send-btn" onclick="handleAIRequest()" title="שלח">
+            <button class="ai-send-btn" id="ai-send-btn" onclick="handleAIRequest()" title="שלח">
                 <i class="fas fa-paper-plane"></i>
             </button>
         </div>
@@ -1019,6 +1030,9 @@ let isPreviewOpen = false, isAIPanelOpen = false, isFilesSidebarOpen = false;
 let currentPreviewDevice = 'desktop';
 let pendingAIChange = null;
 let chatHistories = {}; // key: 'file_<id>' or 'project_<id>'
+let isAIRequestInFlight = false;
+let activeAIRequestId = null;
+const AI_REQUEST_STORAGE_KEY = 'codesphere_pending_ai_request_v1';
 let _fb = null;        // Firebase helpers
 let _auth = null;      // Firebase auth instance
 let currentUser = null;
@@ -1102,6 +1116,8 @@ const previewDeviceSizes = {
 };
 const dropZone      = document.getElementById('drop-zone');
 const aiMessages    = document.getElementById('ai-messages');
+const aiInput       = document.getElementById('ai-input');
+const aiSendBtn     = document.getElementById('ai-send-btn');
 const codeSearchInput = document.getElementById('code-search-input');
 const codeReplaceInput = document.getElementById('code-replace-input');
 const searchPanel = document.getElementById('search-results-panel');
@@ -1362,6 +1378,37 @@ function loadChatHistoriesFromStorage() {
         const raw = localStorage.getItem('codesphere_chat_histories_v1');
         if (raw) chatHistories = JSON.parse(raw);
     } catch(e) { chatHistories = {}; }
+}
+
+function setAIRequestUIState(inFlight) {
+    isAIRequestInFlight = !!inFlight;
+    if (aiSendBtn) aiSendBtn.disabled = isAIRequestInFlight;
+    if (aiInput) {
+        aiInput.disabled = isAIRequestInFlight;
+        aiInput.placeholder = isAIRequestInFlight
+            ? 'ממתין לסיום הבקשה הקודמת...'
+            : 'תאר מה לשנות / לבנות...';
+    }
+}
+
+function savePendingAIRequest(state) {
+    try {
+        if (!state) localStorage.removeItem(AI_REQUEST_STORAGE_KEY);
+        else localStorage.setItem(AI_REQUEST_STORAGE_KEY, JSON.stringify(state));
+    } catch (e) {}
+}
+
+function loadPendingAIRequest() {
+    try {
+        const raw = localStorage.getItem(AI_REQUEST_STORAGE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object') return null;
+        if (!parsed.requestId || !parsed.prompt || !parsed.route || !parsed.payload) return null;
+        return parsed;
+    } catch (e) {
+        return null;
+    }
 }
 
 function openHelpModal() { document.getElementById('help-modal').style.display = 'flex'; }
@@ -2251,54 +2298,37 @@ function addAIMessage(type, text) {
     aiMessages.scrollTop = aiMessages.scrollHeight;
 }
 
-async function handleAIRequest() {
-    const input = document.getElementById('ai-input');
-    const prompt = input.value.trim();
+async function executeAIRequest(requestState, options = {}) {
+    const { isResume = false } = options;
+    const prompt = String(requestState?.prompt || '').trim();
     if (!prompt) return;
-
-    // Save latest editor content before sending
-    const activeFile = getCurrentOpenFileContext();
-    if (activeFile?.index >= 0) {
-        files[activeFile.index].content = activeFile.content;
-    }
-
-    addAIMessage('user', prompt);
-    input.value = '';
-
     const loading = document.createElement('div');
     loading.className = 'ai-message ai-bot';
-    loading.textContent = 'מעבד בקשה...';
+    loading.textContent = isResume ? 'מחדש את הבקשה הקודמת ברקע...' : 'מעבד בקשה...';
     aiMessages.appendChild(loading);
     aiMessages.scrollTop = aiMessages.scrollHeight;
 
-    try {
-        // Determine context: project (all files) or single file
-        const ctx = getProjectContextFiles();
-        const ctxFiles = ctx ? ctx.files.map(f => ({ name: f.name, content: f.content })) : [];
-        const history = getChatHistory();
-        const hasFiles = ctxFiles.length > 0;
+    setAIRequestUIState(true);
+    activeAIRequestId = requestState.requestId;
+    savePendingAIRequest(requestState);
+
+    if (!requestState.userMessageSaved) {
         pushChatHistory('user', prompt);
+        requestState.userMessageSaved = true;
+        savePendingAIRequest(requestState);
+    }
 
-        const route = hasFiles ? '/api/chat' : '/api/generate';
-        const payload = hasFiles
-            ? {
-                message: prompt,
-                files: ctxFiles,
-                history,
-                activeFileName: activeFile?.name || null,
-                isProject: ctx?.isProject || false
-            }
-            : { prompt, history };
-
-        const result = await callAIWorker(route, payload);
+    try {
+        const result = await callAIWorker(requestState.route, requestState.payload);
+        if (activeAIRequestId !== requestState.requestId) return;
         const description = result.description || 'ה-AI יצר עדכון קבצים חדש.';
 
         pendingAIChange = {
             prompt,
             description,
-            activeFileName: activeFile?.name || null,
-            activeFileIndex: activeFile?.index ?? -1,
-            isProject: ctx?.isProject || false,
+            activeFileName: requestState.activeFileName || null,
+            activeFileIndex: requestState.activeFileIndex ?? -1,
+            isProject: !!requestState.isProject,
             files: result.files || []
         };
 
@@ -2320,7 +2350,61 @@ async function handleAIRequest() {
         loading.textContent = `שגיאה: ${error?.message || 'נכשל בעיבוד הבקשה'}`;
         showToast('ה-AI נכשל, בדוק כתובת Worker או מפתח API', 'triangle-exclamation', '#ff5555');
         renderAIMessages();
+    } finally {
+        if (activeAIRequestId === requestState.requestId) {
+            activeAIRequestId = null;
+            setAIRequestUIState(false);
+            savePendingAIRequest(null);
+        }
     }
+}
+
+async function handleAIRequest() {
+    if (isAIRequestInFlight) {
+        showToast('יש בקשה פעילה. המתן לסיום לפני שליחה נוספת.', 'clock', '#f59e0b');
+        return;
+    }
+
+    const prompt = aiInput.value.trim();
+    if (!prompt) return;
+
+    // Save latest editor content before sending
+    const activeFile = getCurrentOpenFileContext();
+    if (activeFile?.index >= 0) {
+        files[activeFile.index].content = activeFile.content;
+    }
+
+    addAIMessage('user', prompt);
+    aiInput.value = '';
+
+    const ctx = getProjectContextFiles();
+    const ctxFiles = ctx ? ctx.files.map(f => ({ name: f.name, content: f.content })) : [];
+    const history = getChatHistory();
+    const hasFiles = ctxFiles.length > 0;
+    const route = hasFiles ? '/api/chat' : '/api/generate';
+    const payload = hasFiles
+        ? {
+            message: prompt,
+            files: ctxFiles,
+            history,
+            activeFileName: activeFile?.name || null,
+            isProject: ctx?.isProject || false
+        }
+        : { prompt, history };
+
+    const requestState = {
+        requestId: `ai_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        prompt,
+        route,
+        payload,
+        activeFileName: activeFile?.name || null,
+        activeFileIndex: activeFile?.index ?? -1,
+        isProject: !!ctx?.isProject,
+        userMessageSaved: false,
+        startedAt: Date.now()
+    };
+
+    await executeAIRequest(requestState, { isResume: false });
 }
 
 function approveAIChange() {
@@ -2776,7 +2860,9 @@ function toggleSidebarMenu() { document.getElementById('sidebar-menu').classList
 function setupDragAndDrop() {
     const wrapper = document.querySelector('.editor-wrapper');
     wrapper.addEventListener('dragover', e => { e.preventDefault(); dropZone.style.display='flex'; });
-    wrapper.addEventListener('dragleave', () => dropZone.style.display='none');
+    wrapper.addEventListener('dragleave', e => {
+        if (!wrapper.contains(e.relatedTarget)) dropZone.style.display='none';
+    });
     wrapper.addEventListener('drop', e => {
         e.preventDefault(); dropZone.style.display='none';
         const file = e.dataTransfer.files[0]; if (!file) return;
@@ -2794,6 +2880,8 @@ function setupDragAndDrop() {
         };
         reader.readAsText(file);
     });
+    window.addEventListener('dragend', () => { dropZone.style.display='none'; });
+    window.addEventListener('drop', () => { dropZone.style.display='none'; });
 }
 
 /* ═══════════════════════════════════════════════
@@ -2809,6 +2897,7 @@ function init() {
         if (ssk) personalSketches = JSON.parse(ssk);
     } catch(e) {}
     loadChatHistoriesFromStorage();
+    setAIRequestUIState(false);
 
     if (files.length === 0) {
         files = [{ id:1, name:'index.html', content:'' }];
@@ -2818,6 +2907,11 @@ function init() {
     document.getElementById('current-file-name').textContent = files[0].name;
     renderProjectsAndFiles(); renderTabs();
     renderAIMessages();
+    const pendingRequest = loadPendingAIRequest();
+    if (pendingRequest) {
+        showToast('זוהתה בקשת AI שלא הסתיימה — ממשיך מאותה נקודה', 'clock-rotate-left', '#22c55e');
+        executeAIRequest(pendingRequest, { isResume: true });
+    }
     codeSearchInput.addEventListener('keydown', e => {
         if (e.key === 'Enter') {
             e.preventDefault();
