@@ -558,7 +558,7 @@
     <div class="nav-actions">
         <button onclick="triggerFileUpload()" class="btn" title="העלה"><i class="fas fa-upload"></i></button>
         <button class="ai-fab" onclick="toggleAIPanel()" title="AI בונה אתרים">
-            <img src="סמל קבוע AI.svg" alt="AI" class="ai-fab-icon">
+            <img id="ai-fab-icon" src="סמל קבוע AI.svg" alt="AI" class="ai-fab-icon">
         </button>
         <button onclick="quickSave()" class="btn-icon btn-cloud" title="שמור מהיר בענן (Ctrl+Q)">
             <i class="fas fa-cloud-arrow-up"></i>
@@ -679,7 +679,7 @@
 <!-- ═══ AI PANEL (RIGHT) ═══ -->
 <div class="ai-panel" id="ai-panel">
     <div class="ai-header">
-        <img src="סמל קבוע AI.svg" alt="AI" class="ai-header-icon">
+        <img id="ai-header-icon" src="סמל קבוע AI.svg" alt="AI" class="ai-header-icon">
         <span style="font-weight:600;">AI בונה אתרים</span>
         <div onclick="toggleAIPanel()" style="margin-right:auto;cursor:pointer;font-size:22px;color:#888;">✕</div>
     </div>
@@ -1113,10 +1113,16 @@ const searchInlineCount = document.getElementById('search-inline-count');
 const aiSendBtn = document.getElementById('ai-send-btn');
 const aiStopBtn = document.getElementById('ai-stop-btn');
 const aiInput = document.getElementById('ai-input');
+const aiFabIcon = document.getElementById('ai-fab-icon');
+const aiHeaderIcon = document.getElementById('ai-header-icon');
+const AI_IDLE_ICON = "סמל קבוע AI.svg";
+const AI_THINKING_ICON = "חושב AI.SVG";
 const previewCodeNav = document.getElementById('preview-code-nav');
 const previewCodeCount = document.getElementById('preview-code-count');
 const previewCodePrev = document.getElementById('preview-code-prev');
 const previewCodeNext = document.getElementById('preview-code-next');
+
+setAIThinkingState(false);
 
 let searchMatches = [];
 let currentSearchMatchIndex = -1;
@@ -2584,6 +2590,14 @@ function addAIMessage(type, text, autoScroll = true) {
     if (autoScroll) aiMessages.scrollTop = aiMessages.scrollHeight;
 }
 
+function setAIThinkingState(isThinking) {
+    const nextIcon = isThinking ? AI_THINKING_ICON : AI_IDLE_ICON;
+    [aiFabIcon, aiHeaderIcon].forEach(icon => {
+        if (!icon) return;
+        icon.src = nextIcon;
+    });
+}
+
 async function handleAIRequest() {
     const input = aiInput;
     const prompt = input.value.trim();
@@ -2591,6 +2605,7 @@ async function handleAIRequest() {
     isAIRequestInFlight = true;
     if (aiSendBtn) aiSendBtn.disabled = true;
     if (aiStopBtn) aiStopBtn.classList.add('show');
+    setAIThinkingState(true);
     input.disabled = true;
     currentAIRequestController = new AbortController();
 
@@ -2602,7 +2617,7 @@ async function handleAIRequest() {
 
     const loading = document.createElement('div');
     loading.className = 'ai-message ai-bot';
-    loading.textContent = 'מעבד בקשה...';
+    loading.innerHTML = `<span style="display:inline-flex;align-items:center;gap:8px;"><img src="${AI_THINKING_ICON}" alt="AI חושב" style="width:18px;height:18px;border-radius:50%;object-fit:cover;" onerror="this.src='${AI_IDLE_ICON}'">מעבד בקשה...</span>`;
     aiMessages.appendChild(loading);
     aiMessages.scrollTop = aiMessages.scrollHeight;
 
@@ -2675,6 +2690,7 @@ async function handleAIRequest() {
         currentAIRequestController = null;
         if (aiSendBtn) aiSendBtn.disabled = false;
         if (aiStopBtn) aiStopBtn.classList.remove('show');
+        setAIThinkingState(false);
         input.disabled = false;
     }
 }
