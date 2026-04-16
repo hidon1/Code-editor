@@ -356,6 +356,22 @@
         }
         .ai-panel.active { right: 0; }
         .ai-header { padding: 14px 18px; background: var(--surface2); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+        .ai-history-actions { display: inline-flex; gap: 6px; margin-right: auto; }
+        .ai-history-btn {
+            border: 1px solid var(--border);
+            background: var(--surface3);
+            color: var(--text);
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+        }
+        .ai-history-btn:hover { border-color: var(--primary); color: var(--primary); }
+        .ai-history-btn:disabled { opacity: 0.4; cursor: not-allowed; }
         .ai-messages { flex: 1; padding: 14px; overflow-y: auto; background: var(--bg); display: flex; flex-direction: column; gap: 10px; }
         .ai-message { padding: 12px 16px; border-radius: 14px; max-width: 86%; font-size: 13.5px; line-height: 1.5; }
         .ai-user { align-self: flex-end; background: linear-gradient(135deg, var(--primary), #00a8cc); color: #000; font-weight: 500; }
@@ -707,7 +723,15 @@
 <div class="ai-panel" id="ai-panel">
     <div class="ai-header">
         <img id="ai-header-icon" src="סמל קבוע AI.svg" alt="AI" class="ai-header-icon">
-        <div onclick="toggleAIPanel()" style="margin-right:auto;cursor:pointer;font-size:22px;color:#888;">✕</div>
+        <div class="ai-history-actions">
+            <button id="ai-undo-btn" class="ai-history-btn" onclick="undoLastAIChange()" title="בטל פעולה אחרונה">
+                <i class="fas fa-rotate-left"></i>
+            </button>
+            <button id="ai-redo-btn" class="ai-history-btn" onclick="redoLastAIChange()" title="החזר פעולה">
+                <i class="fas fa-rotate-right"></i>
+            </button>
+        </div>
+        <div onclick="toggleAIPanel()" style="cursor:pointer;font-size:22px;color:#888;">✕</div>
     </div>
     <div class="ai-messages" id="ai-messages">
         <div class="ai-message ai-bot">שלום! מה תרצה שאשנה בקוד?</div>
@@ -897,7 +921,7 @@
         <h3 style="margin:10px 0 6px;">טיפים לעבודה יעילה</h3>
         <ul style="padding-right:20px;color:var(--text-muted);font-size:14px;">
             <li>בצע שמירה מקומית לפני שינויים גדולים כדי ליצור נקודת חזרה מהירה.</li>
-            <li>אם ה-AI מחזיר שינוי גדול, קרא את תיאור השינוי לפני אישור כדי להבין מה הוחלף.</li>
+            <li>שינויי AI מוחלים אוטומטית; ניתן להשתמש בכפתורי בטל/החזר בצ'אט כדי לחזור צעד אחורה או קדימה.</li>
             <li>עבור פרויקטים עם כמה קבצים, שמור קבצים קשורים באותו פרויקט לקבלת תוצאות מדויקות יותר.</li>
             <li>השתמש בחיפוש/החלפה כדי לעדכן שמות מחלקות או טקסטים באופן עקבי.</li>
             <li>במצב תצוגה מקדימה בדוק גם מובייל וגם דסקטופ כדי לזהות בעיות רספונסיביות מוקדם.</li>
@@ -1063,7 +1087,9 @@ let openTabFileIds = [];
 let nextNewFileSequence = 1;
 let isPreviewOpen = false, isAIPanelOpen = false, isFilesSidebarOpen = false;
 let currentPreviewDevice = 'desktop';
-let pendingAIChange = null;
+let aiChangeHistory = [];
+let aiRedoHistory = [];
+let deletedFileIds = [];
 let aiConversationsByContext = {};
 let aiRequestStateByContext = {};
 let aiConversationHistory = [];
@@ -1080,6 +1106,7 @@ let pendingProfileImageFile = null;
 let workspaceUnsubscribe = null;
 let cloudSaveTimer = null;
 let isApplyingRemoteWorkspace = false;
+let isWorkspaceSyncReady = false;
 let lastWorkspaceSignature = '';
 let _shareUrl = '';
 let addToProjectState = null;
@@ -1143,6 +1170,8 @@ const aiStopBtn = document.getElementById('ai-stop-btn');
 const aiInput = document.getElementById('ai-input');
 const aiFabIcon = document.getElementById('ai-fab-icon');
 const aiHeaderIcon = document.getElementById('ai-header-icon');
+const aiUndoBtn = document.getElementById('ai-undo-btn');
+const aiRedoBtn = document.getElementById('ai-redo-btn');
 const AI_IDLE_ICON = "סמל קבוע AI.svg";
 const AI_THINKING_ICON = "סמל חושבAI.svg";
 const previewCodeNav = document.getElementById('preview-code-nav');
@@ -1151,6 +1180,12 @@ const previewCodePrev = document.getElementById('preview-code-prev');
 const previewCodeNext = document.getElementById('preview-code-next');
 
 setAIThinkingState(false);
+
+function updateAIHistoryButtons() {
+    if (aiUndoBtn) aiUndoBtn.disabled = aiChangeHistory.length === 0;
+    if (aiRedoBtn) aiRedoBtn.disabled = aiRedoHistory.length === 0;
+}
+updateAIHistoryButtons();
 
 let searchMatches = [];
 let currentSearchMatchIndex = -1;
@@ -1552,7 +1587,7 @@ async function callAIWorker(route, payload, signal = undefined) {
 
         const [
             { initializeApp },
-            { getFirestore, collection, doc, setDoc, getDoc, addDoc, serverTimestamp },
+            { getFirestore, collection, doc, setDoc, getDoc, addDoc, onSnapshot, serverTimestamp },
             { getAuth, onAuthStateChanged,
               signInWithEmailAndPassword, createUserWithEmailAndPassword,
               updateProfile, sendPasswordResetEmail, signOut, deleteUser, GoogleAuthProvider, signInWithPopup }
@@ -1578,6 +1613,7 @@ async function callAIWorker(route, payload, signal = undefined) {
                     projects: data.projects,
                     personalSketches: Array.isArray(data.personalSketches) ? data.personalSketches : [],
                     aiConversationsByContext: data.aiConversationsByContext || {},
+                    deletedFileIds: Array.isArray(data.deletedFileIds) ? data.deletedFileIds : [],
                     nextNewFileSequence: Number.isFinite(data.nextNewFileSequence) ? data.nextNewFileSequence : 1,
                     updatedAt: serverTimestamp()
                 });
@@ -1585,6 +1621,11 @@ async function callAIWorker(route, payload, signal = undefined) {
             async loadWorkspace(uid) {
                 const snap = await getDoc(doc(db, 'codesphere_workspaces', uid));
                 return snap.exists() ? snap.data() : null;
+            },
+            watchWorkspace(uid, onData, onError) {
+                return onSnapshot(doc(db, 'codesphere_workspaces', uid), snap => {
+                    onData(snap.exists() ? snap.data() : null);
+                }, onError);
             },
             async saveUserProfile(uid, profileData) {
                 await setDoc(doc(db, 'codesphere_users', uid), {
@@ -1661,9 +1702,12 @@ async function callAIWorker(route, payload, signal = undefined) {
                     console.warn('Workspace sync failed:', syncError?.message || syncError);
                     showToast("שגיאה בסנכרון הענן", "triangle-exclamation", "#ff5555");
                 }
-            } else if (workspaceUnsubscribe) {
-                workspaceUnsubscribe();
-                workspaceUnsubscribe = null;
+            } else {
+                if (workspaceUnsubscribe) {
+                    workspaceUnsubscribe();
+                    workspaceUnsubscribe = null;
+                }
+                isWorkspaceSyncReady = false;
             }
         });
 
@@ -2122,12 +2166,14 @@ function saveToStorage() {
         localStorage.setItem('codesphere_ai_request_state_v1', JSON.stringify(aiRequestStateByContext));
         localStorage.setItem('codesphere_open_tabs_v1', JSON.stringify(openTabFileIds));
         localStorage.setItem('codesphere_next_file_sequence_v1', String(nextNewFileSequence));
+        localStorage.setItem('codesphere_deleted_file_ids_v1', JSON.stringify(deletedFileIds));
     } catch(e) {}
     if (!isApplyingRemoteWorkspace) scheduleCloudAutoSave();
 }
 
 function scheduleCloudAutoSave() {
     if (!currentUser || !_fb) return;
+    if (!isWorkspaceSyncReady) return;
     clearTimeout(cloudSaveTimer);
     cloudSaveTimer = setTimeout(() => {
         saveToFirebase({ silent: true, auto: true });
@@ -2144,9 +2190,54 @@ function getWorkspaceSignature(workspaceData) {
         projects: Array.isArray(workspaceData?.projects) ? workspaceData.projects : [],
         personalSketches: Array.isArray(workspaceData?.personalSketches) ? workspaceData.personalSketches : [],
         aiConversationsByContext: workspaceData?.aiConversationsByContext || {},
+        deletedFileIds: Array.isArray(workspaceData?.deletedFileIds) ? workspaceData.deletedFileIds : [],
         nextNewFileSequence: Number.isFinite(workspaceData?.nextNewFileSequence) ? workspaceData.nextNewFileSequence : 1
     };
     return JSON.stringify(normalized);
+}
+
+function captureWorkspaceSnapshot() {
+    return {
+        files: files.map(f => ({ ...f })),
+        projects: JSON.parse(JSON.stringify(projects)),
+        personalSketches: JSON.parse(JSON.stringify(personalSketches)),
+        aiConversationsByContext: JSON.parse(JSON.stringify(aiConversationsByContext)),
+        deletedFileIds: [...deletedFileIds],
+        nextNewFileSequence
+    };
+}
+
+function restoreWorkspaceSnapshot(snapshot) {
+    if (!snapshot) return;
+    files = (snapshot.files || []).map(f => ({ ...f }));
+    projects = Array.isArray(snapshot.projects) ? JSON.parse(JSON.stringify(snapshot.projects)) : [];
+    personalSketches = Array.isArray(snapshot.personalSketches) ? JSON.parse(JSON.stringify(snapshot.personalSketches)) : [];
+    aiConversationsByContext = snapshot.aiConversationsByContext || {};
+    deletedFileIds = Array.isArray(snapshot.deletedFileIds) ? [...snapshot.deletedFileIds] : [];
+    nextNewFileSequence = Number.isFinite(snapshot.nextNewFileSequence) ? snapshot.nextNewFileSequence : 1;
+
+    if (files.length === 0) files = [{ id: 1, name: 'index.html', content: '' }];
+    syncNextNewFileSequenceFromFiles();
+    currentFileIndex = files.length > 0 ? 0 : -1;
+    openTabFileIds = files.length > 0 ? [files[0].id] : [];
+
+    if (currentFileIndex >= 0) {
+        editor.value = files[currentFileIndex].content || '';
+        setEditorLanguageByFilename(files[currentFileIndex].name);
+        document.getElementById('current-file-name').textContent = files[currentFileIndex].name;
+    } else {
+        editor.value = '';
+        setEditorLanguageByFilename('');
+        document.getElementById('current-file-name').textContent = 'אין קבצים';
+    }
+
+    renderProjectsAndFiles();
+    renderTabs();
+    ensureConversationLoadedForCurrentFile();
+    updateStats();
+    livePreview();
+    recalculateSearchResults();
+    saveToStorage();
 }
 
 function syncNextNewFileSequenceFromFiles() {
@@ -2164,11 +2255,16 @@ function applyWorkspaceData(workspaceData) {
     if (nextSignature === lastWorkspaceSignature) return;
     isApplyingRemoteWorkspace = true;
     try {
-        files = (workspaceData?.files || []).map((f, idx) => ({
+        deletedFileIds = Array.isArray(workspaceData?.deletedFileIds) ? workspaceData.deletedFileIds : [];
+        const deletedSet = new Set(deletedFileIds.map(id => String(id)));
+        const remoteFiles = (workspaceData?.files || []).map((f, idx) => ({
             id: f.id || (Date.now() + idx),
             name: f.name || `file-${idx + 1}.txt`,
             content: f.content || ''
         }));
+        const remoteIds = new Set(remoteFiles.map(f => String(f.id)));
+        const localFallbackFiles = files.filter(f => !deletedSet.has(String(f.id)) && !remoteIds.has(String(f.id)));
+        files = [...remoteFiles, ...localFallbackFiles];
         projects = Array.isArray(workspaceData?.projects) ? workspaceData.projects : [];
         personalSketches = Array.isArray(workspaceData?.personalSketches) ? workspaceData.personalSketches : [];
         aiConversationsByContext = workspaceData?.aiConversationsByContext || {};
@@ -2204,20 +2300,41 @@ function applyWorkspaceData(workspaceData) {
 
 async function startWorkspaceSync(uid) {
     if (!_fb) return;
+    isWorkspaceSyncReady = false;
 
     if (workspaceUnsubscribe) {
         workspaceUnsubscribe();
         workspaceUnsubscribe = null;
     }
-
-    const cloudWorkspace = await _fb.loadWorkspace(uid);
-    if (cloudWorkspace) {
-        applyWorkspaceData(cloudWorkspace);
-        showToast("הסביבה נטענה מהענן בפתיחת המכשיר", "cloud-arrow-down", "#22c55e");
-    } else if (files.length > 0 || projects.length > 0) {
-        await _fb.saveWorkspace(uid, { files, projects, personalSketches, aiConversationsByContext, nextNewFileSequence });
-        showToast("הועלה גיבוי ראשון לענן", "cloud-arrow-up", "#22c55e");
-    }
+    let hasShownInitialToast = false;
+    await new Promise((resolve, reject) => {
+        let isFirstSnapshot = true;
+        workspaceUnsubscribe = _fb.watchWorkspace(uid, async cloudWorkspace => {
+            try {
+                if (cloudWorkspace) {
+                    applyWorkspaceData(cloudWorkspace);
+                    if (!hasShownInitialToast) {
+                        showToast("הסביבה מסונכרנת מול Firebase בזמן אמת", "cloud-arrow-down", "#22c55e");
+                        hasShownInitialToast = true;
+                    }
+                } else if (isFirstSnapshot && (files.length > 0 || projects.length > 0)) {
+                    await _fb.saveWorkspace(uid, { files, projects, personalSketches, aiConversationsByContext, deletedFileIds, nextNewFileSequence });
+                    showToast("הועלה גיבוי ראשון לענן", "cloud-arrow-up", "#22c55e");
+                }
+                if (isFirstSnapshot) {
+                    isWorkspaceSyncReady = true;
+                    isFirstSnapshot = false;
+                    resolve();
+                }
+            } catch (listenerError) {
+                if (isFirstSnapshot) reject(listenerError);
+                else console.warn('Workspace listener error:', listenerError?.message || listenerError);
+            }
+        }, error => {
+            if (isFirstSnapshot) reject(error);
+            else console.warn('Workspace watch failed:', error?.message || error);
+        });
+    });
 }
 
 function toggleTheme() {
@@ -2238,8 +2355,8 @@ async function saveToFirebase(options = {}) {
     dot.className = 'saving';
     try {
         if (!silent) showToast("שומר בענן...", "cloud-arrow-up", "#ff9800");
-        await _fb.saveWorkspace(currentUser.uid, { files, projects, personalSketches, aiConversationsByContext, nextNewFileSequence });
-        lastWorkspaceSignature = getWorkspaceSignature({ files, projects, personalSketches, aiConversationsByContext, nextNewFileSequence });
+        await _fb.saveWorkspace(currentUser.uid, { files, projects, personalSketches, aiConversationsByContext, deletedFileIds, nextNewFileSequence });
+        lastWorkspaceSignature = getWorkspaceSignature({ files, projects, personalSketches, aiConversationsByContext, deletedFileIds, nextNewFileSequence });
         dot.className = 'ok';
         if (!silent) showToast("נשמר בענן!", "cloud-arrow-up", "#22c55e");
     } catch(e) {
@@ -2893,13 +3010,19 @@ async function handleAIRequest() {
         const result = await callAIWorker(route, payload, currentAIRequestController.signal);
         const description = result.description || 'ה-AI יצר עדכון קבצים חדש.';
 
-        pendingAIChange = {
-            prompt,
-            description,
-            activeFileName: activeFile?.name || null,
-            activeFileIndex: activeFile?.index ?? -1,
-            files: result.files || []
-        };
+        const parsedFiles = Array.isArray(result.files) ? result.files : [];
+        if (parsedFiles.length) {
+            const beforeSnapshot = captureWorkspaceSnapshot();
+            upsertFilesFromAI(parsedFiles, {
+                preferredOpenName: activeFile?.name || '',
+                activeFileIndex: activeFile?.index ?? -1
+            });
+            const afterSnapshot = captureWorkspaceSnapshot();
+            aiChangeHistory.push({ before: beforeSnapshot, after: afterSnapshot, description });
+            if (aiChangeHistory.length > 30) aiChangeHistory.shift();
+            aiRedoHistory = [];
+            updateAIHistoryButtons();
+        }
 
         aiConversationHistory.push({ role: 'assistant', content: description });
         persistAIConversation();
@@ -2910,10 +3033,11 @@ async function handleAIRequest() {
             <div class="ai-bot-header">
                 <img src="${AI_IDLE_ICON}" alt="AI" onerror="this.src='${AI_IDLE_ICON}'">
             </div>
-            <div>${escapeHTML(`${description} אשר כדי להחיל את השינוי.`)}</div>
+            <div>${escapeHTML(description)}</div>
         `;
-        document.getElementById('ai-suggestion-text').innerHTML = `<strong>בקשה:</strong><br>${prompt}<br><br><strong>סיכום:</strong><br>${description}`;
-        document.getElementById('confirm-modal').style.display = 'flex';
+        if (parsedFiles.length) {
+            showToast('העדכון הוחל אוטומטית. אפשר ללחוץ "בטל פעולה אחרונה".', 'rotate-left', '#22c55e');
+        }
     } catch (error) {
         if (error?.name === 'AbortError') {
             loading.textContent = 'הבקשה נעצרה.';
@@ -2939,23 +3063,27 @@ function stopAIRequest() {
     currentAIRequestController.abort();
 }
 
-function approveAIChange() {
-    if (pendingAIChange && Array.isArray(pendingAIChange.files) && pendingAIChange.files.length) {
-        upsertFilesFromAI(pendingAIChange.files, {
-            preferredOpenName: pendingAIChange.activeFileName || '',
-            activeFileIndex: pendingAIChange.activeFileIndex ?? -1
-        });
-        livePreview();
-        showToast('קבצי הפרויקט עודכנו מה-AI');
-    }
-    document.getElementById('confirm-modal').style.display = 'none';
-    pendingAIChange = null;
+function undoLastAIChange() {
+    if (!aiChangeHistory.length) return;
+    if (!confirm('לבטל את הפעולה האחרונה של ה-AI ולהחזיר צעד אחד אחורה?')) return;
+    const lastChange = aiChangeHistory.pop();
+    aiRedoHistory.push(lastChange);
+    restoreWorkspaceSnapshot(lastChange.before);
+    updateAIHistoryButtons();
+    showToast('בוצע ביטול לפעולת AI אחרונה', 'rotate-left', '#f59e0b');
 }
 
-function cancelAIChange() {
-    document.getElementById('confirm-modal').style.display = 'none';
-    pendingAIChange = null;
+function redoLastAIChange() {
+    if (!aiRedoHistory.length) return;
+    const nextChange = aiRedoHistory.pop();
+    aiChangeHistory.push(nextChange);
+    restoreWorkspaceSnapshot(nextChange.after);
+    updateAIHistoryButtons();
+    showToast('בוצעה החזרה קדימה של פעולת AI', 'rotate-right', '#22c55e');
 }
+
+function approveAIChange() {}
+function cancelAIChange() {}
 
 /* ═══════════════════════════════════════════════
    FILES SIDEBAR
@@ -3267,6 +3395,7 @@ function deleteFile(fileId) {
     }
 
     files = files.filter(f => f.id !== fileId);
+    if (!deletedFileIds.includes(fileId)) deletedFileIds.push(fileId);
     projects.forEach(project => {
         project.fileIds = project.fileIds.filter(id => id !== fileId);
     });
@@ -3603,6 +3732,7 @@ function init() {
         const sairs = localStorage.getItem('codesphere_ai_request_state_v1');
         const sot = localStorage.getItem('codesphere_open_tabs_v1');
         const snfs = localStorage.getItem('codesphere_next_file_sequence_v1');
+        const sdeleted = localStorage.getItem('codesphere_deleted_file_ids_v1');
         if (sf) files    = JSON.parse(sf);
         if (sp) projects = JSON.parse(sp);
         if (ssk) personalSketches = JSON.parse(ssk);
@@ -3610,6 +3740,7 @@ function init() {
         if (sairs) aiRequestStateByContext = JSON.parse(sairs);
         if (sot) openTabFileIds = JSON.parse(sot);
         if (snfs) nextNewFileSequence = Number(snfs) || 1;
+        if (sdeleted) deletedFileIds = JSON.parse(sdeleted);
     } catch(e) {}
 
     if (files.length === 0) {
