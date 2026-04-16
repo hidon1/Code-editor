@@ -308,6 +308,13 @@
         }
         .preview-code-nav.show { display: inline-flex; }
         .preview-code-count { min-width: 62px; text-align: center; color: var(--text); font-weight: 600; }
+        .preview-inspector-hint {
+            display: flex; align-items: center; gap: 8px;
+            margin-inline-start: 8px; padding: 4px 10px;
+            border-radius: 999px; border: 1px solid rgba(0,212,255,0.28);
+            background: rgba(0,212,255,0.08); color: var(--primary);
+            font-size: 11px; white-space: nowrap;
+        }
         .sketch-personal-form { display: none; }
         .sketch-personal-form.open { display: grid; }
         .preview-device-btn {
@@ -640,6 +647,10 @@
     <div class="preview-panel" id="preview-panel">
         <div class="preview-header">
             <div class="preview-title"><i class="fas fa-eye" style="color:var(--primary);"></i> תצוגה מקדימה</div>
+            <div class="preview-inspector-hint" id="preview-inspector-hint">
+                <i class="fas fa-crosshairs"></i>
+                <span>מצב בדיקה: רחף + קליק כדי לקפוץ לקוד</span>
+            </div>
             <div class="preview-controls">
                 <div class="preview-code-nav" id="preview-code-nav">
                     <button class="preview-device-btn" id="preview-code-prev" title="קטע קודם" onclick="navigatePreviewCodeMatch(-1)">
@@ -2525,17 +2536,91 @@ function injectPreviewInspector(html) {
 (() => {
   if (window.__codesphereInspectorAttached) return;
   window.__codesphereInspectorAttached = true;
+  const OVERLAY_ID = '__codesphere-hover-outline';
+  const createOverlay = () => {
+    let el = document.getElementById(OVERLAY_ID);
+    if (el) return el;
+    el = document.createElement('div');
+    el.id = OVERLAY_ID;
+    el.style.cssText = 'position:fixed;z-index:2147483646;pointer-events:none;border:2px solid #00d4ff;box-shadow:0 0 0 9999px rgba(0,212,255,.08),0 0 0 1px rgba(0,0,0,.25) inset;border-radius:4px;display:none;';
+    document.documentElement.appendChild(el);
+    return el;
+  };
+  const overlay = createOverlay();
+  const cssEscape = (value) => {
+    if (window.CSS && typeof window.CSS.escape === 'function') return window.CSS.escape(value);
+    return String(value).replace(/[^a-zA-Z0-9_\\-]/g, (ch) => '\\\\' + ch);
+  };
+  const buildSelector = (el) => {
+    if (!el || !(el instanceof Element)) return '';
+    if (el.id) return '#' + cssEscape(el.id);
+    const parts = [];
+    let cur = el;
+    while (cur && cur.nodeType === 1 && parts.length < 6) {
+      let part = (cur.tagName || 'div').toLowerCase();
+      const classNames = Array.from(cur.classList || []).slice(0, 2);
+      classNames.forEach((name) => { part += '.' + cssEscape(name); });
+      const parent = cur.parentElement;
+      if (parent) {
+        const siblings = Array.from(parent.children).filter(x => x.tagName === cur.tagName);
+        if (siblings.length > 1) part += ':nth-of-type(' + (siblings.indexOf(cur) + 1) + ')';
+      }
+      parts.unshift(part);
+      cur = parent;
+    }
+    return parts.join(' > ');
+  };
+  const getAttributes = (el) => {
+    const attrs = {};
+    if (!el || !el.attributes) return attrs;
+    Array.from(el.attributes).slice(0, 20).forEach((attr) => {
+      const n = String(attr.name || '').toLowerCase();
+      if (!n || n.startsWith('on')) return;
+      attrs[n] = String(attr.value || '').slice(0, 120);
+    });
+    return attrs;
+  };
   const pick = (el) => {
     if (!el || !(el instanceof Element)) return null;
-    const text = (el.innerText || el.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 80);
+    const rect = el.getBoundingClientRect();
+    const text = (el.innerText || el.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 120);
     return {
       tag: (el.tagName || '').toLowerCase(),
       id: el.id || '',
-      classList: Array.from(el.classList || []).slice(0, 6),
-      text
+      classList: Array.from(el.classList || []).slice(0, 8),
+      text,
+      selector: buildSelector(el),
+      attrs: getAttributes(el),
+      rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height }
     };
   };
+  const drawHover = (el) => {
+    if (!el || !(el instanceof Element)) {
+      overlay.style.display = 'none';
+      return;
+    }
+    const rect = el.getBoundingClientRect();
+    overlay.style.left = rect.left + 'px';
+    overlay.style.top = rect.top + 'px';
+    overlay.style.width = rect.width + 'px';
+    overlay.style.height = rect.height + 'px';
+    overlay.style.display = 'block';
+  };
+  document.documentElement.style.cursor = 'crosshair';
+  document.addEventListener('mousemove', (event) => {
+    const t = event.target;
+    if (!t || t.id === OVERLAY_ID) return;
+    drawHover(t);
+  }, true);
+  document.addEventListener('mouseleave', () => {
+    overlay.style.display = 'none';
+  }, true);
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') overlay.style.display = 'none';
+  }, true);
   document.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
     const details = pick(event.target);
     if (!details) return;
     window.parent.postMessage({ source: 'codesphere-preview', type: 'element-picked', details }, '*');
@@ -2558,26 +2643,40 @@ function livePreview() {
 }
 
 function findCodeMatchesForPickedElement(details) {
-    const matches = [];
-    if (!details) return matches;
+    const hitsByKey = new Map();
+    if (!details) return [];
     const textSnippet = String(details.text || '').trim();
     const id = String(details.id || '').trim();
     const classes = Array.isArray(details.classList) ? details.classList.map(c => String(c).trim()).filter(Boolean) : [];
     const tag = String(details.tag || '').trim();
-
+    const selector = String(details.selector || '').trim();
+    const attrs = (details.attrs && typeof details.attrs === 'object') ? details.attrs : {};
     const escaped = v => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const collect = (content, regex, type, fileIndex) => {
+    const tagPattern = tag ? escaped(tag) : '[a-z0-9-]+';
+    const includeHit = (hit) => {
+        const key = `${hit.fileIndex}:${hit.start}:${hit.end}:${hit.type}`;
+        const current = hitsByKey.get(key);
+        if (!current || current.score < hit.score) hitsByKey.set(key, hit);
+    };
+    const collect = (content, regex, type, fileIndex, score = 1) => {
         if (!regex) return;
         for (const match of content.matchAll(regex)) {
-            matches.push({
+            includeHit({
                 fileIndex,
                 start: match.index,
                 end: match.index + Math.max(1, match[0].length),
-                type
+                type,
+                score
             });
-            if (matches.length > 80) return;
+            if (hitsByKey.size > 220) return;
         }
     };
+    const snippetVariants = [];
+    if (textSnippet.length >= 4) {
+        snippetVariants.push(textSnippet.slice(0, 70));
+        const firstWords = textSnippet.split(' ').slice(0, 4).join(' ').trim();
+        if (firstWords && firstWords !== snippetVariants[0]) snippetVariants.push(firstWords);
+    }
 
     files.forEach((file, fileIndex) => {
         const name = String(file?.name || '').toLowerCase();
@@ -2585,26 +2684,45 @@ function findCodeMatchesForPickedElement(details) {
         if (!content) return;
 
         if (/\.html?$/.test(name)) {
-            if (id) collect(content, new RegExp(`id\\s*=\\s*["']${escaped(id)}["']`, 'gi'), 'HTML', fileIndex);
-            classes.forEach(cls => collect(content, new RegExp(`class\\s*=\\s*["'][^"']*\\b${escaped(cls)}\\b[^"']*["']`, 'gi'), 'HTML', fileIndex));
-            if (textSnippet && textSnippet.length >= 3) collect(content, new RegExp(escaped(textSnippet.slice(0, 50)), 'gi'), 'HTML', fileIndex);
-            if (tag) collect(content, new RegExp(`<${escaped(tag)}\\b`, 'gi'), 'HTML', fileIndex);
+            if (id) collect(content, new RegExp(`<${tagPattern}[^>]*id\\s*=\\s*["']${escaped(id)}["'][^>]*>`, 'gi'), 'HTML', fileIndex, 120);
+            if (id) collect(content, new RegExp(`id\\s*=\\s*["']${escaped(id)}["']`, 'gi'), 'HTML', fileIndex, 100);
+            classes.forEach(cls => collect(content, new RegExp(`<${tagPattern}[^>]*class\\s*=\\s*["'][^"']*\\b${escaped(cls)}\\b[^"']*["'][^>]*>`, 'gi'), 'HTML', fileIndex, 90));
+            Object.entries(attrs).forEach(([attrName, value]) => {
+                if (!attrName || !value) return;
+                collect(content, new RegExp(`${escaped(attrName)}\\s*=\\s*["']${escaped(String(value).slice(0, 60))}["']`, 'gi'), 'HTML', fileIndex, 74);
+            });
+            snippetVariants.forEach(snippet => collect(content, new RegExp(escaped(snippet), 'gi'), 'HTML', fileIndex, 65));
+            if (tag) collect(content, new RegExp(`<${escaped(tag)}\\b`, 'gi'), 'HTML', fileIndex, 35);
         }
         if (/\.css$/.test(name)) {
-            if (id) collect(content, new RegExp(`#${escaped(id)}\\b`, 'g'), 'CSS', fileIndex);
-            classes.forEach(cls => collect(content, new RegExp(`\\.${escaped(cls)}\\b`, 'g'), 'CSS', fileIndex));
-            if (tag) collect(content, new RegExp(`(^|[\\s,{>])${escaped(tag)}([\\s.{:#\\[]|$)`, 'gmi'), 'CSS', fileIndex);
+            if (selector) {
+                const cleanSelector = selector.replace(/:nth-of-type\\(\\d+\\)/g, '').trim();
+                if (cleanSelector) collect(content, new RegExp(escaped(cleanSelector), 'g'), 'CSS', fileIndex, 78);
+            }
+            if (id) collect(content, new RegExp(`#${escaped(id)}\\b`, 'g'), 'CSS', fileIndex, 110);
+            classes.forEach(cls => collect(content, new RegExp(`\\.${escaped(cls)}\\b`, 'g'), 'CSS', fileIndex, 88));
+            if (tag) collect(content, new RegExp(`(^|[\\s,{>])${escaped(tag)}([\\s.{:#\\[]|$)`, 'gmi'), 'CSS', fileIndex, 38);
         }
         if (/\.js$/.test(name)) {
             if (id) {
-                collect(content, new RegExp(`getElementById\\(\\s*["']${escaped(id)}["']\\s*\\)`, 'g'), 'JS', fileIndex);
-                collect(content, new RegExp(`querySelector\\(\\s*["']#${escaped(id)}["']\\s*\\)`, 'g'), 'JS', fileIndex);
+                collect(content, new RegExp(`getElementById\\(\\s*["']${escaped(id)}["']\\s*\\)`, 'g'), 'JS', fileIndex, 110);
+                collect(content, new RegExp(`querySelector\\(\\s*["']#${escaped(id)}["']\\s*\\)`, 'g'), 'JS', fileIndex, 108);
             }
-            classes.forEach(cls => collect(content, new RegExp(`querySelector(All)?\\(\\s*["'][^"']*\\.${escaped(cls)}[^"']*["']\\s*\\)`, 'g'), 'JS', fileIndex));
-            if (textSnippet && textSnippet.length >= 4) collect(content, new RegExp(escaped(textSnippet.slice(0, 50)), 'gi'), 'JS', fileIndex);
+            if (selector) {
+                const cleanSelector = selector.replace(/:nth-of-type\\(\\d+\\)/g, '').trim();
+                if (cleanSelector) collect(content, new RegExp(`querySelector(All)?\\(\\s*["']${escaped(cleanSelector)}["']\\s*\\)`, 'g'), 'JS', fileIndex, 95);
+            }
+            classes.forEach(cls => collect(content, new RegExp(`querySelector(All)?\\(\\s*["'][^"']*\\.${escaped(cls)}[^"']*["']\\s*\\)`, 'g'), 'JS', fileIndex, 84));
+            snippetVariants.forEach(snippet => collect(content, new RegExp(escaped(snippet), 'gi'), 'JS', fileIndex, 62));
         }
     });
-    return matches.slice(0, 120);
+    return Array.from(hitsByKey.values())
+        .sort((a, b) => {
+            if (b.score !== a.score) return b.score - a.score;
+            if (a.fileIndex !== b.fileIndex) return a.fileIndex - b.fileIndex;
+            return a.start - b.start;
+        })
+        .slice(0, 120);
 }
 
 function updatePreviewCodeNav() {
