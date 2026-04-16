@@ -2103,16 +2103,30 @@ function replaceAllMatches() {
 }
 
 function saveToStorage() {
-    try {
-        localStorage.setItem('codesphere_files_v4', JSON.stringify(files));
-        localStorage.setItem('codesphere_projects_v1', JSON.stringify(projects));
-        localStorage.setItem('codesphere_personal_sketches_v1', JSON.stringify(personalSketches));
-        localStorage.setItem('codesphere_ai_conversations_v1', JSON.stringify(aiConversationsByContext));
-        localStorage.setItem('codesphere_ai_request_state_v1', JSON.stringify(aiRequestStateByContext));
-        localStorage.setItem('codesphere_open_tabs_v1', JSON.stringify(openTabFileIds));
-        localStorage.setItem('codesphere_next_file_sequence_v1', String(nextNewFileSequence));
-    } catch(e) {}
+    // Workspace is cloud-only by request: keep data in memory and cloud, not browser localStorage.
     if (!isApplyingRemoteWorkspace) scheduleCloudAutoSave();
+}
+
+function getCurrentWorkspaceSnapshot() {
+    return { files, projects, personalSketches, aiConversationsByContext, nextNewFileSequence };
+}
+
+function hasPendingWorkspaceChanges() {
+    const currentSignature = getWorkspaceSignature(getCurrentWorkspaceSnapshot());
+    return currentSignature !== lastWorkspaceSignature;
+}
+
+function clearLegacyLocalWorkspaceCache() {
+    const keys = [
+        'codesphere_files_v4',
+        'codesphere_projects_v1',
+        'codesphere_personal_sketches_v1',
+        'codesphere_ai_conversations_v1',
+        'codesphere_ai_request_state_v1',
+        'codesphere_open_tabs_v1',
+        'codesphere_next_file_sequence_v1'
+    ];
+    keys.forEach(key => localStorage.removeItem(key));
 }
 
 function scheduleCloudAutoSave() {
@@ -2199,12 +2213,14 @@ async function startWorkspaceSync(uid) {
         workspaceUnsubscribe = null;
     }
 
+    // Keep startup as an empty tab by request; load from cloud only when user asks explicitly.
     const cloudWorkspace = await _fb.loadWorkspace(uid);
     if (cloudWorkspace) {
-        applyWorkspaceData(cloudWorkspace);
-        showToast("הסביבה נטענה מהענן בפתיחת המכשיר", "cloud-arrow-down", "#22c55e");
-    } else if (files.length > 0 || projects.length > 0) {
-        await _fb.saveWorkspace(uid, { files, projects, personalSketches, aiConversationsByContext, nextNewFileSequence });
+        lastWorkspaceSignature = getWorkspaceSignature(getCurrentWorkspaceSnapshot());
+        showToast("נכנסת בהצלחה — סביבת פתיחה ריקה, טעינה מהענן זמינה ידנית", "cloud", "#22c55e");
+    } else {
+        await _fb.saveWorkspace(uid, getCurrentWorkspaceSnapshot());
+        lastWorkspaceSignature = getWorkspaceSignature(getCurrentWorkspaceSnapshot());
         showToast("הועלה גיבוי ראשון לענן", "cloud-arrow-up", "#22c55e");
     }
 }
@@ -2792,10 +2808,9 @@ async function handleAIRequest() {
             <div class="ai-bot-header">
                 <img src="${AI_IDLE_ICON}" alt="AI" onerror="this.src='${AI_IDLE_ICON}'">
             </div>
-            <div>${escapeHTML(`${description} אשר כדי להחיל את השינוי.`)}</div>
+            <div>${escapeHTML(`${description} השינוי הוחל אוטומטית.`)}</div>
         `;
-        document.getElementById('ai-suggestion-text').innerHTML = `<strong>בקשה:</strong><br>${prompt}<br><br><strong>סיכום:</strong><br>${description}`;
-        document.getElementById('confirm-modal').style.display = 'flex';
+        approveAIChange();
     } catch (error) {
         if (error?.name === 'AbortError') {
             loading.textContent = 'הבקשה נעצרה.';
@@ -2971,9 +2986,13 @@ function openFile(i) {
     ensureConversationLoadedForCurrentFile();
 }
 
-function closeTab(tabIndex) {
+async function closeTab(tabIndex) {
     reconcileOpenTabs();
     if (tabIndex < 0 || tabIndex >= openTabFileIds.length) return;
+    if (hasPendingWorkspaceChanges()) {
+        const shouldSave = confirm('יש שינויים שלא נשמרו בענן. לשמור עכשיו לפני סגירת הכרטיסייה?');
+        if (shouldSave) await saveToFirebase({ silent: true });
+    }
     const closingFileId = openTabFileIds[tabIndex];
     const closingFileIndex = getFileIndexById(closingFileId);
     const wasActive = closingFileIndex === currentFileIndex;
@@ -3477,22 +3496,7 @@ function setupDragAndDrop() {
    INIT
 ═══════════════════════════════════════════════ */
 function init() {
-    try {
-        const sf = localStorage.getItem('codesphere_files_v4');
-        const sp = localStorage.getItem('codesphere_projects_v1');
-        const ssk = localStorage.getItem('codesphere_personal_sketches_v1');
-        const sach = localStorage.getItem('codesphere_ai_conversations_v1');
-        const sairs = localStorage.getItem('codesphere_ai_request_state_v1');
-        const sot = localStorage.getItem('codesphere_open_tabs_v1');
-        const snfs = localStorage.getItem('codesphere_next_file_sequence_v1');
-        if (sf) files    = JSON.parse(sf);
-        if (sp) projects = JSON.parse(sp);
-        if (ssk) personalSketches = JSON.parse(ssk);
-        if (sach) aiConversationsByContext = JSON.parse(sach);
-        if (sairs) aiRequestStateByContext = JSON.parse(sairs);
-        if (sot) openTabFileIds = JSON.parse(sot);
-        if (snfs) nextNewFileSequence = Number(snfs) || 1;
-    } catch(e) {}
+    clearLegacyLocalWorkspaceCache();
 
     if (files.length === 0) {
         files = [{ id:1, name:'index.html', content:'' }];
@@ -3554,6 +3558,16 @@ function init() {
     window.addEventListener('message', handlePreviewMessage);
     setInterval(saveToStorage, 8000);
     window.addEventListener('resize', syncPreviewFrameSize);
+    window.addEventListener('beforeunload', e => {
+        if (!hasPendingWorkspaceChanges()) return;
+        e.preventDefault();
+        e.returnValue = '';
+    });
+    window.addEventListener('pagehide', () => {
+        if (hasPendingWorkspaceChanges()) {
+            saveToFirebase({ silent: true, auto: true });
+        }
+    });
 
     // ── Auto-show auth modal after 3 seconds if not logged in ──
     setTimeout(() => {
