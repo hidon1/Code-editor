@@ -2260,8 +2260,48 @@ function closeGuideModal() { document.getElementById('guide-modal').style.displa
    Inlines <link rel="stylesheet" href="*.css"> and <script src="*.js"> tags. */
 function bundleToHtml(fileList, preferredFileName = '') {
     const preferred = String(preferredFileName || '').toLowerCase();
-    const htmlFile = fileList.find(f => String(f.name || '').toLowerCase() === preferred)
-                  || fileList.find(f => f.name === 'index.html')
+    const normalizePath = (path) => String(path || '').replace(/\\/g, '/').replace(/^\/+/, '');
+    const splitPath = (path) => normalizePath(path).split('/').filter(Boolean);
+    const getDir = (path) => {
+        const parts = splitPath(path);
+        parts.pop();
+        return parts.join('/');
+    };
+    const joinPath = (baseDir, rel) => {
+        const raw = normalizePath(rel);
+        if (!raw || /^(?:[a-z]+:)?\/\//i.test(raw) || raw.startsWith('data:') || raw.startsWith('#')) return '';
+        const inputParts = raw.split('/').filter(Boolean);
+        const parts = splitPath(baseDir);
+        if (!raw.startsWith('/')) {
+            inputParts.forEach(seg => {
+                if (seg === '.') return;
+                if (seg === '..') {
+                    if (parts.length) parts.pop();
+                    return;
+                }
+                parts.push(seg);
+            });
+            return parts.join('/');
+        }
+        return inputParts.join('/');
+    };
+
+    const normalizedFiles = fileList.map(f => ({
+        ...f,
+        _path: normalizePath(f?.name || '')
+    }));
+    const fileMap = new Map(normalizedFiles.map(f => [f._path, f]));
+    const findFileByPath = (rawPath, htmlDir = '') => {
+        const clean = String(rawPath || '').split('#')[0].split('?')[0].trim();
+        if (!clean) return null;
+        const resolved = joinPath(htmlDir, clean);
+        if (resolved && fileMap.has(resolved)) return fileMap.get(resolved);
+        const byName = normalizedFiles.find(f => (f._path.split('/').pop() || '').toLowerCase() === clean.toLowerCase());
+        return byName || null;
+    };
+
+    const htmlFile = normalizedFiles.find(f => f._path.toLowerCase() === preferred)
+                  || normalizedFiles.find(f => f._path.toLowerCase() === 'index.html')
                   || fileList.find(f => f.name.endsWith('.html'))
                   || fileList[0];
 
@@ -2278,18 +2318,22 @@ function bundleToHtml(fileList, preferredFileName = '') {
         return html;
     }
 
-    // Inline companion CSS files
-    fileList.filter(f => f.name.endsWith('.css')).forEach(cssFile => {
-        const escaped = cssFile.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const re = new RegExp(`<link[^>]+href=["']` + escaped + `["'][^>]*>`, 'gi');
-        html = html.replace(re, `<style>${cssFile.content}</style>`);
+    const htmlDir = getDir(htmlFile?._path || '');
+
+    html = html.replace(/<link([^>]*?)href=["']([^"']+)["']([^>]*)>/gi, (full, before, href, after) => {
+        const rel = String(href || '').trim();
+        if (!/\.css($|[?#])/i.test(rel)) return full;
+        const cssFile = findFileByPath(rel, htmlDir);
+        if (!cssFile) return full;
+        return `<style data-inline-from="${cssFile._path}">${cssFile.content}</style>`;
     });
 
-    // Inline companion JS files
-    fileList.filter(f => f.name.endsWith('.js')).forEach(jsFile => {
-        const escaped = jsFile.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const re = new RegExp(`<script[^>]+src=["']` + escaped + `["'][^>]*><\/script>`, 'gi');
-        html = html.replace(re, `<script>${jsFile.content}<\/script>`);
+    html = html.replace(/<script([^>]*?)src=["']([^"']+)["']([^>]*)><\/script>/gi, (full, before, src, after) => {
+        const rel = String(src || '').trim();
+        if (!/\.js($|[?#])/i.test(rel)) return full;
+        const jsFile = findFileByPath(rel, htmlDir);
+        if (!jsFile) return full;
+        return `<script data-inline-from="${jsFile._path}">${jsFile.content}<\/script>`;
     });
 
     return html;
@@ -2844,6 +2888,8 @@ function renderProjectsAndFiles() {
                                     <i class="fas fa-pencil-alt"></i></button>
                                 <button onclick="event.stopPropagation();removeFileFromProject(${f.id},${project.id})" class="file-action-btn" title="הסר">
                                     <i class="fas fa-times"></i></button>
+                                <button onclick="event.stopPropagation();deleteFile(${f.id})" class="file-action-btn" title="מחק קובץ" style="color:#ff5555;">
+                                    <i class="fas fa-trash"></i></button>
                             </div>
                         </div>`;
                       }).join('');
@@ -2879,6 +2925,8 @@ function renderProjectsAndFiles() {
                         <i class="fas fa-pencil-alt"></i></button>
                     <button onclick="event.stopPropagation();showAddToProject(${f.id})" class="file-action-btn" title="הוסף לפרויקט">
                         <i class="fas fa-folder-plus"></i></button>
+                    <button onclick="event.stopPropagation();deleteFile(${f.id})" class="file-action-btn" title="מחק קובץ" style="color:#ff5555;">
+                        <i class="fas fa-trash"></i></button>
                 </div>
             </div>`;
           }).join('');
@@ -3080,6 +3128,51 @@ function renameFile(fileId) {
     renderTabs();
     saveToStorage();
     showToast("שם הקובץ עודכן", "check-circle", "#22c55e");
+}
+
+function deleteFile(fileId) {
+    const fileIndex = getFileIndexById(fileId);
+    if (fileIndex < 0) return;
+    const fileName = files[fileIndex]?.name || 'קובץ ללא שם';
+    if (!confirm(`למחוק את הקובץ "${fileName}"?`)) return;
+
+    if (fileIndex === currentFileIndex && currentFileIndex >= 0 && currentFileIndex < files.length) {
+        persistAIConversation();
+    }
+
+    files = files.filter(f => f.id !== fileId);
+    projects.forEach(project => {
+        project.fileIds = project.fileIds.filter(id => id !== fileId);
+    });
+    openTabFileIds = openTabFileIds.filter(id => id !== fileId);
+
+    if (!files.length) {
+        currentFileIndex = -1;
+        editor.value = '';
+        setEditorLanguageByFilename('');
+        document.getElementById('current-file-name').textContent = 'אין קובץ פתוח';
+        aiConversationHistory = [];
+        activeAIContextKey = 'global';
+        renderAIConversation();
+    } else {
+        const nextIndex = Math.min(fileIndex, files.length - 1);
+        currentFileIndex = nextIndex;
+        if (currentFileIndex >= 0) {
+            ensureActiveFileTab();
+            editor.value = files[currentFileIndex].content || '';
+            setEditorLanguageByFilename(files[currentFileIndex].name);
+            document.getElementById('current-file-name').textContent = files[currentFileIndex].name;
+            ensureConversationLoadedForCurrentFile();
+        }
+    }
+
+    renderProjectsAndFiles();
+    renderTabs();
+    livePreview();
+    updateStats();
+    recalculateSearchResults();
+    saveToStorage();
+    showToast(`הקובץ "${fileName}" נמחק`, "trash", "#ff5555");
 }
 
 function deleteProject(id) {
