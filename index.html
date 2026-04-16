@@ -136,10 +136,13 @@
         /* MAIN */
         .main-container {
             display: flex;
-            height: calc(100vh - 56px);
-            height: calc(100dvh - 56px);
-            margin-top: 56px;
+            position: fixed;
+            top: 56px;
+            right: 0;
+            bottom: 0;
+            left: 0;
             min-width: 0;
+            min-height: 0;
         }
         .main-container.preview-open .editor-area { flex: 1 1 55%; }
         .editor-area { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
@@ -295,7 +298,7 @@
         .preview-device-btn.active { background: var(--primary); color: #000; border-color: transparent; box-shadow: 0 2px 10px rgba(0,212,255,0.4); }
         .preview-stage {
             flex: 1; margin: 14px; border-radius: 12px;
-            background: #060612; display: flex; align-items: center; justify-content: center;
+            background: #060612; display: flex; align-items: flex-start; justify-content: center;
             overflow: auto; padding: 20px; box-shadow: inset 0 0 40px rgba(0,0,0,0.5);
         }
         .preview-frame {
