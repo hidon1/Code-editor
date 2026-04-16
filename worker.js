@@ -105,17 +105,6 @@ function buildMessages(userContent, history = []) {
   ];
 }
 
-function normalizeSingleActiveFile(files = []) {
-  if (!Array.isArray(files) || files.length === 0) return [];
-  const first = files[0] || {};
-  return [
-    {
-      name: String(first?.name || "index.html"),
-      content: String(first?.content || ""),
-    },
-  ];
-}
-
 async function callXAI(env, request, messages) {
   // מפתח יכול להגיע מסודיות Cloudflare או מכותרת x-xai-api-key
   const apiKey =
@@ -203,16 +192,35 @@ async function handleChat(request, env) {
   if (!body.message?.trim()) return apiError('"message" is required', 400);
 
   const requestedActiveFileName = String(body.activeFileName || "").trim();
-  const chatFiles = normalizeSingleActiveFile(body.files ?? []);
-  const activeFileName = requestedActiveFileName || String(chatFiles[0]?.name || "").trim();
-  const filesBlock = chatFiles
-    .map((f) => `=== ${f.name} ===\n${f.content || ""}`)
-    .join("\n\n");
+  const chatFiles = Array.isArray(body.files) ? body.files : [];
+
+  if (chatFiles.length > 1) {
+    return apiError('"files" for /api/chat must include only the active editor file', 400);
+  }
+
+  const activeFile = chatFiles[0]
+    ? {
+        name: String(chatFiles[0]?.name || "index.html"),
+        content: String(chatFiles[0]?.content || ""),
+      }
+    : null;
+
+  const activeFileName = requestedActiveFileName || String(activeFile?.name || "").trim();
+  const filesBlock = activeFile ? `=== ${activeFile.name} ===
+${activeFile.content}` : "";
 
   const activeFileHint = activeFileName
-    ? `הקובץ הפעיל לעריכה: ${activeFileName}\nיש להחזיר אותו מעודכן בתוך files[].\n\n`
+    ? `הקובץ הפעיל לעריכה: ${activeFileName}
+יש להחזיר אותו מעודכן בתוך files[].
+
+`
     : "";
-  const context = filesBlock ? `${activeFileHint}קוד נוכחי:\n\n${filesBlock}\n\n---\n` : activeFileHint;
+  const context = filesBlock ? `${activeFileHint}קוד נוכחי:
+
+${filesBlock}
+
+---
+` : activeFileHint;
 
   const userMsg = `${context}${body.message.trim()}`;
   const messages = buildMessages(userMsg, body.history ?? []);

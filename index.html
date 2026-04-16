@@ -2750,16 +2750,10 @@ async function handleAIRequest() {
                 message: prompt,
                 files: [{ name: activeFile.name, content: activeFile.content || '' }],
                 history: historyForRequest,
-                activeFileName: activeFile?.name || null,
-                projectContext: {
-                    projectNames: [],
-                    fileNames: activeFile?.name ? [activeFile.name] : [],
-                    activeProjectName: null
-                }
+                activeFileName: activeFile?.name || null
             }
             : {
-                prompt,
-                projectContext: {}
+                prompt
             };
 
         const result = await callAIWorker(route, payload, currentAIRequestController.signal);
