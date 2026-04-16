@@ -287,6 +287,13 @@
         }
         .preview-title { display: flex; align-items: center; gap: 8px; font-weight: 700; white-space: nowrap; }
         .preview-controls { display: flex; align-items: center; gap: 5px; margin-inline-start: auto; }
+        .preview-code-nav {
+            display: none; align-items: center; gap: 6px;
+            padding: 4px 8px; border-radius: 999px; border: 1px solid var(--border);
+            background: var(--surface2); color: var(--text-muted); font-size: 11.5px;
+        }
+        .preview-code-nav.show { display: inline-flex; }
+        .preview-code-count { min-width: 62px; text-align: center; color: var(--text); font-weight: 600; }
         .sketch-personal-form { display: none; }
         .sketch-personal-form.open { display: grid; }
         .preview-device-btn {
@@ -312,6 +319,8 @@
         .preview-frame.device-tablet  { --bezel-size: 16px; border-radius: 28px; }
         .preview-frame.device-phone   { --bezel-size: 14px; border-radius: 38px; }
         .preview-scale-shell { position: relative; overflow: hidden; background: #fff; }
+        .preview-frame.device-tablet .preview-scale-shell,
+        .preview-frame.device-phone .preview-scale-shell { border-radius: 16px; }
         .preview-viewport { position: absolute; top: 0; right: 0; transform-origin: top right; background: #fff; }
         #preview { width: 100%; border: none; height: 100%; display: block; }
 
@@ -330,6 +339,18 @@
         .ai-message { padding: 12px 16px; border-radius: 14px; max-width: 86%; font-size: 13.5px; line-height: 1.5; }
         .ai-user { align-self: flex-end; background: linear-gradient(135deg, var(--primary), #00a8cc); color: #000; font-weight: 500; }
         .ai-bot { align-self: flex-start; background: var(--surface3); border: 1px solid var(--border); }
+        .ai-empty-prompts {
+            border: 1px dashed var(--border); border-radius: 12px; padding: 12px;
+            background: var(--surface2); display: flex; flex-direction: column; gap: 8px;
+        }
+        .ai-empty-prompts-title { font-size: 12.5px; color: var(--text-muted); }
+        .ai-empty-prompts-grid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; }
+        .ai-empty-prompt-btn {
+            border: 1px solid var(--border); background: var(--surface3);
+            color: var(--text); border-radius: 10px; padding: 8px 9px; cursor: pointer;
+            text-align: right; font-size: 12px; line-height: 1.4;
+        }
+        .ai-empty-prompt-btn:hover { border-color: var(--primary); color: var(--primary); }
         .ai-input-area { padding: 13px; background: var(--surface2); border-top: 1px solid var(--border); flex-shrink: 0; display:flex; gap:8px; align-items:center; }
         .ai-input-area input {
             flex: 1; padding: 11px 16px; border: 1px solid var(--border);
@@ -338,11 +359,18 @@
         }
         .ai-input-area input:focus { border-color: var(--primary); box-shadow: 0 0 0 2px var(--primary-dim); }
         .ai-send-btn {
-            border: none; border-radius: 9999px; padding: 10px 14px;
+            border: none; border-radius: 9999px; padding: 10px 12px;
             background: linear-gradient(135deg, var(--primary), #00a8cc); color: #000;
-            font-weight: 700; cursor: pointer; min-width: 92px;
+            font-weight: 700; cursor: pointer; min-width: 44px; width: 44px; justify-content: center;
+            display: inline-flex; align-items: center;
         }
         .ai-send-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+        .ai-stop-btn {
+            border: none; border-radius: 9999px; padding: 10px 14px;
+            background: linear-gradient(135deg, #ff5a5a, #e11d48);
+            color: #fff; font-weight: 700; cursor: pointer; display: none;
+        }
+        .ai-stop-btn.show { display: inline-flex; align-items: center; }
 
         /* HAMBURGER MENU */
         .sidebar-menu {
@@ -582,6 +610,15 @@
         <div class="preview-header">
             <div class="preview-title"><i class="fas fa-eye" style="color:var(--primary);"></i> תצוגה מקדימה</div>
             <div class="preview-controls">
+                <div class="preview-code-nav" id="preview-code-nav">
+                    <button class="preview-device-btn" id="preview-code-prev" title="קטע קודם" onclick="navigatePreviewCodeMatch(-1)">
+                        <i class="fas fa-chevron-up"></i>
+                    </button>
+                    <span class="preview-code-count" id="preview-code-count">0 / 0</span>
+                    <button class="preview-device-btn" id="preview-code-next" title="קטע הבא" onclick="navigatePreviewCodeMatch(1)">
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                </div>
                 <button class="preview-device-btn active" data-device="desktop" title="מחשב" onclick="setPreviewDevice('desktop')"><i class="fas fa-desktop"></i></button>
                 <button class="preview-device-btn" data-device="tablet" title="טאבלט" onclick="setPreviewDevice('tablet')"><i class="fas fa-tablet-alt"></i></button>
                 <button class="preview-device-btn" data-device="phone" title="טלפון" onclick="setPreviewDevice('phone')"><i class="fas fa-mobile-alt"></i></button>
@@ -637,7 +674,12 @@
     <div class="ai-input-area">
         <input type="text" id="ai-input" placeholder="לדוגמה: הוסף כפתור כחול..."
                onkeypress="if(event.key==='Enter') handleAIRequest()">
-        <button id="ai-send-btn" class="ai-send-btn" onclick="handleAIRequest()"><i class="fas fa-paper-plane"></i> שלח</button>
+        <button id="ai-send-btn" class="ai-send-btn" onclick="handleAIRequest()" title="שליחה">
+            <i class="fas fa-paper-plane"></i>
+        </button>
+        <button id="ai-stop-btn" class="ai-stop-btn" onclick="stopAIRequest()">
+            <i class="fas fa-stop"></i>&nbsp;עצור
+        </button>
     </div>
 </div>
 
@@ -908,6 +950,9 @@ let aiConversationsByContext = {};
 let aiConversationHistory = [];
 let activeAIContextKey = 'global';
 let isAIRequestInFlight = false;
+let currentAIRequestController = null;
+let previewCodeMatches = [];
+let currentPreviewCodeMatchIndex = -1;
 let _fb = null;        // Firebase helpers
 let _auth = null;      // Firebase auth instance
 let currentUser = null;
@@ -973,6 +1018,12 @@ const searchPanel = document.getElementById('search-results-panel');
 const searchNextBtn = document.getElementById('search-next-btn');
 const searchInlineCount = document.getElementById('search-inline-count');
 const aiSendBtn = document.getElementById('ai-send-btn');
+const aiStopBtn = document.getElementById('ai-stop-btn');
+const aiInput = document.getElementById('ai-input');
+const previewCodeNav = document.getElementById('preview-code-nav');
+const previewCodeCount = document.getElementById('preview-code-count');
+const previewCodePrev = document.getElementById('preview-code-prev');
+const previewCodeNext = document.getElementById('preview-code-next');
 
 let searchMatches = [];
 let currentSearchMatchIndex = -1;
@@ -1084,6 +1135,14 @@ if (button) {
     "isPractice": true
 }`
     }
+];
+
+const AI_EMPTY_FILE_PROMPTS = [
+    { label: 'דף מכירות', prompt: 'תבנה לי דף מכירות מלא בעברית עם אזור מוצרים, סל קניות מעוצב, אזור מבצעים, המלצות לקוחות ופוטר מקצועי. תייצר HTML+CSS+JS מסודר.' },
+    { label: 'דף נחיתה', prompt: 'תבנה דף נחיתה מודרני עם כותרת חזקה, יתרונות, עדויות, שאלות נפוצות וטופס יצירת קשר. שים דגש על עיצוב נקי ורספונסיבי.' },
+    { label: 'אתר לעמותה', prompt: 'תייצר אתר תדמית לעמותה עם אודות, פרויקטים, גלריה, תרומות וטופס התנדבות. העיצוב צריך להיות חם, נגיש ומקצועי.' },
+    { label: 'חנות אופנה', prompt: 'תבנה עמוד חנות אופנה עם קטלוג מוצרים, פילטרים, כפתור הוספה לסל, וחוויית משתמש נעימה במובייל ודסקטופ.' },
+    { label: 'פורטפוליו אישי', prompt: 'תייצר אתר פורטפוליו אישי עם הצגת עבודות, אודות, כישורים, והנעה לפעולה ליצירת קשר. העיצוב צריך להיראות יוקרתי ומודרני.' }
 ];
 
 const FIREBASE_CONFIG = {
@@ -1233,20 +1292,51 @@ function persistAIConversation() {
     aiConversationsByContext[activeAIContextKey] = [...aiConversationHistory];
 }
 
+function hasAnyCodeInWorkspace() {
+    return files.some(f => String(f?.content || '').trim().length > 0);
+}
+
+function applyAIPromptSuggestion(prompt) {
+    if (!aiInput) return;
+    aiInput.value = prompt;
+    aiInput.focus();
+}
+
+function renderAIEmptySuggestions() {
+    const wrap = document.createElement('div');
+    wrap.className = 'ai-empty-prompts';
+    wrap.innerHTML = `<div class="ai-empty-prompts-title">בחר התחלה מהירה ותוכל לערוך את הטקסט לפני שליחה:</div>`;
+    const grid = document.createElement('div');
+    grid.className = 'ai-empty-prompts-grid';
+    AI_EMPTY_FILE_PROMPTS.forEach(item => {
+        const btn = document.createElement('button');
+        btn.className = 'ai-empty-prompt-btn';
+        btn.type = 'button';
+        btn.textContent = item.label;
+        btn.addEventListener('click', () => applyAIPromptSuggestion(item.prompt));
+        grid.appendChild(btn);
+    });
+    wrap.appendChild(grid);
+    aiMessages.appendChild(wrap);
+}
+
 function renderAIConversation() {
     aiMessages.innerHTML = '';
     if (!aiConversationHistory.length) {
         const welcome = document.createElement('div');
         welcome.className = 'ai-message ai-bot';
-        welcome.textContent = 'שלום! מה תרצה שאשנה בקוד?';
+        welcome.textContent = hasAnyCodeInWorkspace()
+            ? 'מה תרצה לשפר היום?'
+            : 'מה תרצה לבנות היום?';
         aiMessages.appendChild(welcome);
+        if (!hasAnyCodeInWorkspace()) renderAIEmptySuggestions();
         return;
     }
     aiConversationHistory.forEach(msg => addAIMessage(msg.role === 'user' ? 'user' : 'bot', msg.content, false));
     aiMessages.scrollTop = aiMessages.scrollHeight;
 }
 
-async function callAIWorker(route, payload) {
+async function callAIWorker(route, payload, signal = undefined) {
     const aiBase = resolveAIBase();
     const isFirebaseHosting = /(?:^|\.)web\.app$|(?:^|\.)firebaseapp\.com$/i.test(window.location.hostname);
     if (!aiBase && isFirebaseHosting) {
@@ -1261,6 +1351,7 @@ async function callAIWorker(route, payload) {
         method: 'POST',
         headers,
         body: JSON.stringify(payload),
+        signal
     });
 
     const data = await response.json().catch(() => ({}));
@@ -1996,10 +2087,135 @@ function shareViaEmail() {
 /* ═══════════════════════════════════════════════
    PREVIEW
 ═══════════════════════════════════════════════ */
+function getPreviewFileScope() {
+    if (currentFileIndex < 0) return [];
+    const fileId = files[currentFileIndex]?.id;
+    const project = getProjectForFile(fileId);
+    return project ? files.filter(f => project.fileIds.includes(f.id)) : files;
+}
+
+function injectPreviewInspector(html) {
+    const inspector = `<script>
+(() => {
+  if (window.__codesphereInspectorAttached) return;
+  window.__codesphereInspectorAttached = true;
+  const pick = (el) => {
+    if (!el || !(el instanceof Element)) return null;
+    const text = (el.innerText || el.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 80);
+    return {
+      tag: (el.tagName || '').toLowerCase(),
+      id: el.id || '',
+      classList: Array.from(el.classList || []).slice(0, 6),
+      text
+    };
+  };
+  document.addEventListener('click', (event) => {
+    const details = pick(event.target);
+    if (!details) return;
+    window.parent.postMessage({ source: 'codesphere-preview', type: 'element-picked', details }, '*');
+  }, true);
+})();
+<\\/script>`;
+    if (/<\/body>/i.test(html)) return html.replace(/<\/body>/i, `${inspector}</body>`);
+    return `${html}${inspector}`;
+}
+
 function livePreview() {
     if (currentFileIndex < 0 || !isPreviewOpen) return;
-    const blob = new Blob([editor.value], { type: 'text/html' });
+    const scope = getPreviewFileScope();
+    if (!scope.length) return;
+    if (currentFileIndex >= 0 && files[currentFileIndex]) files[currentFileIndex].content = editor.value;
+    const html = injectPreviewInspector(bundleToHtml(scope));
+    const blob = new Blob([html], { type: 'text/html' });
     preview.src = URL.createObjectURL(blob);
+}
+
+function findCodeMatchesForPickedElement(details) {
+    const matches = [];
+    if (!details) return matches;
+    const textSnippet = String(details.text || '').trim();
+    const id = String(details.id || '').trim();
+    const classes = Array.isArray(details.classList) ? details.classList.map(c => String(c).trim()).filter(Boolean) : [];
+    const tag = String(details.tag || '').trim();
+
+    const escaped = v => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const collect = (content, regex, type, fileIndex) => {
+        if (!regex) return;
+        for (const match of content.matchAll(regex)) {
+            matches.push({
+                fileIndex,
+                start: match.index,
+                end: match.index + Math.max(1, match[0].length),
+                type
+            });
+            if (matches.length > 80) return;
+        }
+    };
+
+    files.forEach((file, fileIndex) => {
+        const name = String(file?.name || '').toLowerCase();
+        const content = String(file?.content || '');
+        if (!content) return;
+
+        if (/\.html?$/.test(name)) {
+            if (id) collect(content, new RegExp(`id\\s*=\\s*["']${escaped(id)}["']`, 'gi'), 'HTML', fileIndex);
+            classes.forEach(cls => collect(content, new RegExp(`class\\s*=\\s*["'][^"']*\\b${escaped(cls)}\\b[^"']*["']`, 'gi'), 'HTML', fileIndex));
+            if (textSnippet && textSnippet.length >= 3) collect(content, new RegExp(escaped(textSnippet.slice(0, 50)), 'gi'), 'HTML', fileIndex);
+            if (tag) collect(content, new RegExp(`<${escaped(tag)}\\b`, 'gi'), 'HTML', fileIndex);
+        }
+        if (/\.css$/.test(name)) {
+            if (id) collect(content, new RegExp(`#${escaped(id)}\\b`, 'g'), 'CSS', fileIndex);
+            classes.forEach(cls => collect(content, new RegExp(`\\.${escaped(cls)}\\b`, 'g'), 'CSS', fileIndex));
+            if (tag) collect(content, new RegExp(`(^|[\\s,{>])${escaped(tag)}([\\s.{:#\\[]|$)`, 'gmi'), 'CSS', fileIndex);
+        }
+        if (/\.js$/.test(name)) {
+            if (id) {
+                collect(content, new RegExp(`getElementById\\(\\s*["']${escaped(id)}["']\\s*\\)`, 'g'), 'JS', fileIndex);
+                collect(content, new RegExp(`querySelector\\(\\s*["']#${escaped(id)}["']\\s*\\)`, 'g'), 'JS', fileIndex);
+            }
+            classes.forEach(cls => collect(content, new RegExp(`querySelector(All)?\\(\\s*["'][^"']*\\.${escaped(cls)}[^"']*["']\\s*\\)`, 'g'), 'JS', fileIndex));
+            if (textSnippet && textSnippet.length >= 4) collect(content, new RegExp(escaped(textSnippet.slice(0, 50)), 'gi'), 'JS', fileIndex);
+        }
+    });
+    return matches.slice(0, 120);
+}
+
+function updatePreviewCodeNav() {
+    const hasMatches = previewCodeMatches.length > 0;
+    previewCodeNav.classList.toggle('show', hasMatches);
+    previewCodeCount.textContent = hasMatches ? `${currentPreviewCodeMatchIndex + 1} / ${previewCodeMatches.length}` : '0 / 0';
+    previewCodePrev.disabled = !hasMatches;
+    previewCodeNext.disabled = !hasMatches;
+}
+
+function jumpToPreviewCodeMatch(index) {
+    if (!previewCodeMatches.length || index < 0 || index >= previewCodeMatches.length) return;
+    currentPreviewCodeMatchIndex = index;
+    const hit = previewCodeMatches[index];
+    if (!hit) return;
+    openFile(hit.fileIndex);
+    editor.setSelectionRange(hit.start, hit.end);
+    updatePreviewCodeNav();
+}
+
+function navigatePreviewCodeMatch(step) {
+    if (!previewCodeMatches.length) return;
+    const next = (currentPreviewCodeMatchIndex + step + previewCodeMatches.length) % previewCodeMatches.length;
+    jumpToPreviewCodeMatch(next);
+}
+
+function handlePreviewMessage(event) {
+    const data = event?.data;
+    if (!data || data.source !== 'codesphere-preview' || data.type !== 'element-picked') return;
+    previewCodeMatches = findCodeMatchesForPickedElement(data.details);
+    currentPreviewCodeMatchIndex = previewCodeMatches.length ? 0 : -1;
+    updatePreviewCodeNav();
+    if (previewCodeMatches.length) {
+        jumpToPreviewCodeMatch(0);
+        showToast('נמצאו קטעי קוד תואמים לרכיב שנלחץ', 'crosshairs', '#22c55e');
+    } else {
+        showToast('לא נמצאו התאמות ישירות בקבצים', 'info-circle', '#f59e0b');
+    }
 }
 
 function togglePreview() {
@@ -2014,6 +2230,10 @@ function togglePreview() {
         livePreview();
         // Wait for the CSS width transition to finish (380ms) before measuring
         setTimeout(syncPreviewFrameSize, 400);
+    } else {
+        previewCodeMatches = [];
+        currentPreviewCodeMatchIndex = -1;
+        updatePreviewCodeNav();
     }
 }
 
@@ -2067,12 +2287,14 @@ function addAIMessage(type, text, autoScroll = true) {
 }
 
 async function handleAIRequest() {
-    const input = document.getElementById('ai-input');
+    const input = aiInput;
     const prompt = input.value.trim();
     if (!prompt || isAIRequestInFlight) return;
     isAIRequestInFlight = true;
     if (aiSendBtn) aiSendBtn.disabled = true;
+    if (aiStopBtn) aiStopBtn.classList.add('show');
     input.disabled = true;
+    currentAIRequestController = new AbortController();
 
     addAIMessage('user', prompt);
     aiConversationHistory.push({ role: 'user', content: prompt });
@@ -2124,7 +2346,7 @@ async function handleAIRequest() {
                 projectContext: {}
             };
 
-        const result = await callAIWorker(route, payload);
+        const result = await callAIWorker(route, payload, currentAIRequestController.signal);
         const description = result.description || 'ה-AI יצר עדכון קבצים חדש.';
 
         pendingAIChange = {
@@ -2143,13 +2365,25 @@ async function handleAIRequest() {
         document.getElementById('ai-suggestion-text').innerHTML = `<strong>בקשה:</strong><br>${prompt}<br><br><strong>סיכום:</strong><br>${description}`;
         document.getElementById('confirm-modal').style.display = 'flex';
     } catch (error) {
-        loading.textContent = `שגיאה: ${error?.message || 'נכשל בעיבוד הבקשה'}`;
-        showToast('ה-AI נכשל, בדוק כתובת Worker או מפתח API', 'triangle-exclamation', '#ff5555');
+        if (error?.name === 'AbortError') {
+            loading.textContent = 'הבקשה נעצרה.';
+            showToast('הבקשה ל-AI הופסקה', 'ban', '#f59e0b');
+        } else {
+            loading.textContent = `שגיאה: ${error?.message || 'נכשל בעיבוד הבקשה'}`;
+            showToast('ה-AI נכשל, בדוק כתובת Worker או מפתח API', 'triangle-exclamation', '#ff5555');
+        }
     } finally {
         isAIRequestInFlight = false;
+        currentAIRequestController = null;
         if (aiSendBtn) aiSendBtn.disabled = false;
+        if (aiStopBtn) aiStopBtn.classList.remove('show');
         input.disabled = false;
     }
+}
+
+function stopAIRequest() {
+    if (!currentAIRequestController) return;
+    currentAIRequestController.abort();
 }
 
 function approveAIChange() {
@@ -2803,6 +3037,7 @@ function init() {
     });
 
     setupDragAndDrop();
+    window.addEventListener('message', handlePreviewMessage);
     setInterval(saveToStorage, 8000);
     window.addEventListener('resize', syncPreviewFrameSize);
 
