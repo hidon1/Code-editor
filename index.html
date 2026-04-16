@@ -554,6 +554,9 @@
         <button onclick="saveMainAction()" class="btn btn-primary" title="שמור בענן (Ctrl+S)">
             <i class="fas fa-cloud-arrow-up"></i><span>שמור</span>
         </button>
+        <button onclick="downloadCurrentFile()" class="btn" title="הורד קובץ פתוח">
+            <i class="fas fa-download"></i><span>הורד</span>
+        </button>
         <button onclick="createPublicLink()" class="btn btn-share">
             <i class="fas fa-share-alt"></i><span>שתף</span>
         </button>
@@ -706,9 +709,6 @@
     </div>
     <div class="menu-item" onclick="toggleFilesSidebar();toggleSidebarMenu()">
         <i class="fas fa-folder-open" style="color:#f59e0b;"></i><span>ניהול פרויקטים וקבצים</span>
-    </div>
-    <div class="menu-item" onclick="openAISettings();toggleSidebarMenu()">
-        <i class="fas fa-key" style="color:#10b981;"></i><span>הגדרות AI (Worker/API Key)</span>
     </div>
     <div class="menu-item" onclick="openGuideModal();toggleSidebarMenu()">
         <i class="fas fa-book-open" style="color:#22c55e;"></i><span>מדריך שימוש וכללים</span>
@@ -929,6 +929,40 @@
     </div>
 </div>
 
+<!-- ═══ MODAL: Edit Profile ═══ -->
+<div class="modal" id="profile-modal">
+    <div class="modal-content" style="max-width:440px;">
+        <h2 style="color:var(--primary);margin-bottom:12px;"><i class="fas fa-user-gear"></i> עריכת פרופיל</h2>
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
+            <div class="user-avatar" id="profile-avatar-preview" style="width:56px;height:56px;font-size:21px;">?</div>
+            <div style="flex:1;">
+                <div style="font-size:13px;color:var(--text-muted);margin-bottom:6px;">תמונת פרופיל</div>
+                <input type="file" id="profile-image-input" accept="image/*" class="modal-input" style="margin:0;" onchange="uploadProfileImage()">
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button onclick="signOutUser()" class="btn"><i class="fas fa-right-from-bracket"></i> התנתק</button>
+            <button onclick="openDeleteAccountModal()" class="btn" style="background:#ff5555;color:white;"><i class="fas fa-trash"></i> מחק חשבון לצמיתות</button>
+            <button onclick="closeProfileModal()" class="btn btn-primary">סגור</button>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ MODAL: Delete Account Confirm ═══ -->
+<div class="modal" id="delete-account-modal">
+    <div class="modal-content" style="max-width:440px;">
+        <h2 style="color:#ff7777;margin-bottom:12px;"><i class="fas fa-triangle-exclamation"></i> מחיקת חשבון לצמיתות</h2>
+        <p style="color:var(--text-muted);font-size:13px;line-height:1.5;">
+            כדי לאשר מחיקה, הזן את כתובת האימייל של החשבון ולחץ אישור.
+        </p>
+        <input type="email" id="delete-account-email" class="modal-input" placeholder="האימייל שלך">
+        <div class="modal-actions">
+            <button onclick="confirmDeleteAccount()" class="btn" style="background:#ff5555;color:white;"><i class="fas fa-trash"></i> אישור מחיקה</button>
+            <button onclick="closeDeleteAccountModal()" class="btn btn-primary">ביטול</button>
+        </div>
+    </div>
+</div>
+
 <!-- ═══ TOAST ═══ -->
 <div class="toast" id="toast">
     <i class="fas fa-check-circle" style="color:#22c55e;" id="toast-icon"></i>
@@ -955,6 +989,7 @@ let previewCodeMatches = [];
 let currentPreviewCodeMatchIndex = -1;
 let _fb = null;        // Firebase helpers
 let _auth = null;      // Firebase auth instance
+let _storage = null;   // Firebase storage instance
 let currentUser = null;
 let workspaceUnsubscribe = null;
 let cloudSaveTimer = null;
@@ -1382,16 +1417,20 @@ async function callAIWorker(route, payload, signal = undefined) {
             { getFirestore, collection, doc, setDoc, getDoc, addDoc, serverTimestamp },
             { getAuth, onAuthStateChanged,
               signInWithEmailAndPassword, createUserWithEmailAndPassword,
-              updateProfile, signOut, GoogleAuthProvider, signInWithPopup }
+              updateProfile, signOut, deleteUser, GoogleAuthProvider, signInWithPopup }
+            ,
+            { getStorage, ref: storageRef, uploadBytes, getDownloadURL }
         ] = await Promise.all([
             import('https://www.gstatic.com/firebasejs/12.12.0/firebase-app.js'),
             import('https://www.gstatic.com/firebasejs/12.12.0/firebase-firestore.js'),
-            import('https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js')
+            import('https://www.gstatic.com/firebasejs/12.12.0/firebase-auth.js'),
+            import('https://www.gstatic.com/firebasejs/12.12.0/firebase-storage.js')
         ]);
 
         const app = initializeApp(FIREBASE_CONFIG);
         const db  = getFirestore(app);
         _auth     = getAuth(app);
+        _storage  = getStorage(app);
 
         /* ── Firestore helpers ── */
         _fb = {
@@ -1432,8 +1471,12 @@ async function callAIWorker(route, payload, signal = undefined) {
             createUserWithEmailAndPassword,
             updateProfile,
             signOut,
+            deleteUser,
             signInWithPopup,
-            GoogleAuthProvider
+            GoogleAuthProvider,
+            storageRef,
+            uploadBytes,
+            getDownloadURL
         };
 
         /* ── Auth state listener ── */
@@ -1475,6 +1518,7 @@ function updateAuthUI(user) {
     const avatarBig   = document.getElementById('menu-avatar-big');
     const headerAv    = document.getElementById('header-avatar');
     const headerUN    = document.getElementById('header-username');
+    const profileAvatarPreview = document.getElementById('profile-avatar-preview');
 
     if (user) {
         dot.className = 'ok';
@@ -1494,14 +1538,19 @@ function updateAuthUI(user) {
         // Menu
         menuName.textContent  = name;
         menuEmail.textContent = user.email;
-        menuAuthText.textContent = 'התנתק';
-        menuAuthIcon.className = 'fas fa-right-from-bracket';
-        menuAuthIcon.style.color = '#ff5555';
+        menuAuthText.textContent = 'עריכת פרופיל';
+        menuAuthIcon.className = 'fas fa-user-gear';
+        menuAuthIcon.style.color = '#22c55e';
         if (user.photoURL) {
             avatarBig.innerHTML = `<img src="${user.photoURL}" alt="">`;
+            if (profileAvatarPreview) profileAvatarPreview.innerHTML = `<img src="${user.photoURL}" alt="">`;
         } else {
             avatarBig.innerHTML = '';
             avatarBig.textContent = initial;
+            if (profileAvatarPreview) {
+                profileAvatarPreview.innerHTML = '';
+                profileAvatarPreview.textContent = initial;
+            }
         }
 
         // Close auth modal if open
@@ -1519,6 +1568,10 @@ function updateAuthUI(user) {
         menuAuthIcon.className = 'fas fa-right-to-bracket';
         menuAuthIcon.style.color = 'var(--primary)';
         avatarBig.innerHTML = '<i class="fas fa-user"></i>';
+        if (profileAvatarPreview) {
+            profileAvatarPreview.innerHTML = '';
+            profileAvatarPreview.textContent = '?';
+        }
     }
 }
 
@@ -1534,7 +1587,7 @@ function requireAuthAction(fn) {
 
 function handleMenuAuthClick() {
     if (currentUser) {
-        signOutUser();
+        openProfileModal();
     } else {
         toggleSidebarMenu();
         showAuthModal();
@@ -1643,9 +1696,90 @@ async function signInWithGoogle() {
 /* ── Sign out ── */
 async function signOutUser() {
     if (!_auth) return;
-    if (!confirm("להתנתק?")) return;
+    if (!confirm("להתנתק מהחשבון?")) return;
     await _auth._helpers.signOut(_auth);
+    closeProfileModal();
     showToast("התנתקת", "right-from-bracket", "#ff9800");
+}
+
+function openProfileModal() {
+    if (!currentUser) {
+        showAuthModal();
+        return;
+    }
+    const profileAvatarPreview = document.getElementById('profile-avatar-preview');
+    const name = currentUser.displayName || currentUser.email.split('@')[0];
+    const initial = String(name || '?')[0].toUpperCase();
+    if (currentUser.photoURL) {
+        profileAvatarPreview.innerHTML = `<img src="${currentUser.photoURL}" alt="">`;
+    } else {
+        profileAvatarPreview.innerHTML = '';
+        profileAvatarPreview.textContent = initial;
+    }
+    document.getElementById('profile-image-input').value = '';
+    document.getElementById('profile-modal').style.display = 'flex';
+    toggleSidebarMenu();
+}
+
+function closeProfileModal() {
+    document.getElementById('profile-modal').style.display = 'none';
+}
+
+async function uploadProfileImage() {
+    if (!_auth || !_storage || !currentUser) return;
+    const input = document.getElementById('profile-image-input');
+    const file = input?.files?.[0];
+    if (!file) return;
+    try {
+        const maxBytes = 3 * 1024 * 1024;
+        if (file.size > maxBytes) {
+            showToast('תמונה גדולה מדי (עד 3MB)', 'triangle-exclamation', '#ff9800');
+            return;
+        }
+        const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+        const path = `profile-images/${currentUser.uid}/avatar.${ext}`;
+        const ref = _auth._helpers.storageRef(_storage, path);
+        await _auth._helpers.uploadBytes(ref, file, { contentType: file.type || 'image/jpeg' });
+        const url = await _auth._helpers.getDownloadURL(ref);
+        await _auth._helpers.updateProfile(currentUser, { photoURL: url });
+        updateAuthUI(currentUser);
+        showToast('תמונת הפרופיל נשמרה', 'image', '#22c55e');
+    } catch (error) {
+        showToast(`שגיאה בהעלאת תמונה: ${error?.message || 'נכשל'}`, 'triangle-exclamation', '#ff5555');
+    }
+}
+
+function openDeleteAccountModal() {
+    if (!currentUser) return;
+    document.getElementById('delete-account-email').value = '';
+    document.getElementById('delete-account-modal').style.display = 'flex';
+}
+
+function closeDeleteAccountModal() {
+    document.getElementById('delete-account-modal').style.display = 'none';
+}
+
+async function confirmDeleteAccount() {
+    if (!_auth || !currentUser) return;
+    const typedEmail = String(document.getElementById('delete-account-email').value || '').trim().toLowerCase();
+    const userEmail = String(currentUser.email || '').trim().toLowerCase();
+    if (!typedEmail) {
+        showToast('יש להזין אימייל לאישור', 'triangle-exclamation', '#ff9800');
+        return;
+    }
+    if (typedEmail !== userEmail) {
+        showToast('האימייל לא תואם לחשבון', 'triangle-exclamation', '#ff5555');
+        return;
+    }
+    if (!confirm('למחוק את החשבון לצמיתות? לא ניתן לשחזר.')) return;
+    try {
+        await _auth._helpers.deleteUser(currentUser);
+        closeDeleteAccountModal();
+        closeProfileModal();
+        showToast('החשבון נמחק לצמיתות', 'trash', '#ff5555');
+    } catch (error) {
+        showToast(`נדרש להתחבר מחדש לפני מחיקה: ${error?.message || ''}`, 'triangle-exclamation', '#ff5555');
+    }
 }
 
 /* ═══════════════════════════════════════════════
@@ -1904,8 +2038,10 @@ function closeGuideModal() { document.getElementById('guide-modal').style.displa
 ═══════════════════════════════════════════════ */
 /* Bundle a list of {name, content} files into a single self-contained HTML.
    Inlines <link rel="stylesheet" href="*.css"> and <script src="*.js"> tags. */
-function bundleToHtml(fileList) {
-    const htmlFile = fileList.find(f => f.name === 'index.html')
+function bundleToHtml(fileList, preferredFileName = '') {
+    const preferred = String(preferredFileName || '').toLowerCase();
+    const htmlFile = fileList.find(f => String(f.name || '').toLowerCase() === preferred)
+                  || fileList.find(f => f.name === 'index.html')
                   || fileList.find(f => f.name.endsWith('.html'))
                   || fileList[0];
 
@@ -2125,7 +2261,8 @@ function livePreview() {
     const scope = getPreviewFileScope();
     if (!scope.length) return;
     if (currentFileIndex >= 0 && files[currentFileIndex]) files[currentFileIndex].content = editor.value;
-    const html = injectPreviewInspector(bundleToHtml(scope));
+    const activeFileName = files[currentFileIndex]?.name || '';
+    const html = injectPreviewInspector(bundleToHtml(scope, activeFileName));
     const blob = new Blob([html], { type: 'text/html' });
     preview.src = URL.createObjectURL(blob);
 }
@@ -2614,6 +2751,20 @@ async function saveMainAction() {
     await saveToFirebase();
 }
 
+function downloadCurrentFile() {
+    if (currentFileIndex < 0) { showToast("אין קובץ פתוח", "exclamation-circle", "#ff9800"); return; }
+    files[currentFileIndex].content = editor.value;
+    const fileName = files[currentFileIndex].name || 'index.html';
+    const blob = new Blob([editor.value], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast(`הקובץ ${fileName} הורד למחשב`, 'download', '#22c55e');
+}
+
 async function saveAsFile() {
     if (currentFileIndex < 0) { showToast("אין קובץ", "exclamation-circle", "#ff9800"); return; }
     const currentName = files[currentFileIndex].name || 'index.html';
@@ -3023,6 +3174,8 @@ function init() {
         if (e.key === 'Escape') {
             document.getElementById('sidebar-menu').classList.remove('open');
             document.getElementById('files-sidebar').classList.remove('open');
+            document.getElementById('profile-modal').style.display = 'none';
+            document.getElementById('delete-account-modal').style.display = 'none';
             isFilesSidebarOpen = false;
             // Don't close auth modal on Escape — user must press "לא עכשיו"
         }
