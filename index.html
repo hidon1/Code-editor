@@ -1643,6 +1643,8 @@ async function callAIWorker(route, payload, signal = undefined) {
                     aiConversationsByContext: data.aiConversationsByContext || {},
                     deletedFileIds: Array.isArray(data.deletedFileIds) ? data.deletedFileIds : [],
                     nextNewFileSequence: Number.isFinite(data.nextNewFileSequence) ? data.nextNewFileSequence : 1,
+                    openTabFileIds: Array.isArray(data.openTabFileIds) ? data.openTabFileIds : [],
+                    activeFileId: data.activeFileId ?? null,
                     updatedAt: serverTimestamp()
                 });
             },
@@ -2221,19 +2223,24 @@ function getWorkspaceSignature(workspaceData) {
         personalSketches: Array.isArray(workspaceData?.personalSketches) ? workspaceData.personalSketches : [],
         aiConversationsByContext: workspaceData?.aiConversationsByContext || {},
         deletedFileIds: Array.isArray(workspaceData?.deletedFileIds) ? workspaceData.deletedFileIds : [],
-        nextNewFileSequence: Number.isFinite(workspaceData?.nextNewFileSequence) ? workspaceData.nextNewFileSequence : 1
+        nextNewFileSequence: Number.isFinite(workspaceData?.nextNewFileSequence) ? workspaceData.nextNewFileSequence : 1,
+        openTabFileIds: Array.isArray(workspaceData?.openTabFileIds) ? workspaceData.openTabFileIds : [],
+        activeFileId: workspaceData?.activeFileId ?? null
     };
     return JSON.stringify(normalized);
 }
 
 function captureWorkspaceSnapshot() {
+    const activeFileId = (currentFileIndex >= 0 && currentFileIndex < files.length) ? files[currentFileIndex]?.id : null;
     return {
         files: files.map(f => ({ ...f })),
         projects: JSON.parse(JSON.stringify(projects)),
         personalSketches: JSON.parse(JSON.stringify(personalSketches)),
         aiConversationsByContext: JSON.parse(JSON.stringify(aiConversationsByContext)),
         deletedFileIds: [...deletedFileIds],
-        nextNewFileSequence
+        nextNewFileSequence,
+        openTabFileIds: [...openTabFileIds],
+        activeFileId
     };
 }
 
@@ -2256,10 +2263,16 @@ function restoreWorkspaceSnapshot(snapshot) {
     aiConversationsByContext = snapshot.aiConversationsByContext || {};
     deletedFileIds = Array.isArray(snapshot.deletedFileIds) ? [...snapshot.deletedFileIds] : [];
     nextNewFileSequence = Number.isFinite(snapshot.nextNewFileSequence) ? snapshot.nextNewFileSequence : 1;
-
-    if (files.length === 0) files = [{ id: 1, name: 'index.html', content: '' }];
+    openTabFileIds = Array.isArray(snapshot.openTabFileIds) ? [...snapshot.openTabFileIds] : [];
     syncNextNewFileSequenceFromFiles();
-    clearActiveFileSelection();
+    reconcileOpenTabs();
+
+    const nextActiveIndex = getFileIndexById(snapshot.activeFileId);
+    if (nextActiveIndex >= 0) {
+        openFile(nextActiveIndex);
+    } else {
+        clearActiveFileSelection();
+    }
 
     renderProjectsAndFiles();
     renderTabs();
@@ -2300,16 +2313,15 @@ function applyWorkspaceData(workspaceData) {
         personalSketches = Array.isArray(workspaceData?.personalSketches) ? workspaceData.personalSketches : [];
         aiConversationsByContext = workspaceData?.aiConversationsByContext || {};
         nextNewFileSequence = Number.isFinite(workspaceData?.nextNewFileSequence) ? workspaceData.nextNewFileSequence : 1;
-
-        if (files.length === 0) {
-            files = [{ id: 1, name: 'index.html', content: '' }];
+        if (Array.isArray(workspaceData?.openTabFileIds)) {
+            openTabFileIds = [...workspaceData.openTabFileIds];
         }
         syncNextNewFileSequenceFromFiles();
 
         reconcileOpenTabs();
-        let nextActiveIndex = previousActiveFileId == null ? -1 : getFileIndexById(previousActiveFileId);
+        const preferredActiveFileId = workspaceData?.activeFileId ?? previousActiveFileId;
+        let nextActiveIndex = preferredActiveFileId == null ? -1 : getFileIndexById(preferredActiveFileId);
         if (nextActiveIndex < 0 && openTabFileIds.length > 0) nextActiveIndex = getFileIndexById(openTabFileIds[0]);
-        if (nextActiveIndex < 0 && files.length > 0) nextActiveIndex = 0;
         if (nextActiveIndex >= 0) {
             currentFileIndex = nextActiveIndex;
             ensureActiveFileTab();
@@ -2351,7 +2363,16 @@ async function startWorkspaceSync(uid) {
                         hasShownInitialToast = true;
                     }
                 } else if (isFirstSnapshot && (files.length > 0 || projects.length > 0)) {
-                    await _fb.saveWorkspace(uid, { files, projects, personalSketches, aiConversationsByContext, deletedFileIds, nextNewFileSequence });
+                    await _fb.saveWorkspace(uid, {
+                        files,
+                        projects,
+                        personalSketches,
+                        aiConversationsByContext,
+                        deletedFileIds,
+                        nextNewFileSequence,
+                        openTabFileIds,
+                        activeFileId: (currentFileIndex >= 0 && currentFileIndex < files.length) ? files[currentFileIndex]?.id : null
+                    });
                     showToast("הועלה גיבוי ראשון לענן", "cloud-arrow-up", "#22c55e");
                 }
                 if (isFirstSnapshot) {
@@ -2388,8 +2409,27 @@ async function saveToFirebase(options = {}) {
     dot.className = 'saving';
     try {
         if (!silent) showToast("שומר בענן...", "cloud-arrow-up", "#ff9800");
-        await _fb.saveWorkspace(currentUser.uid, { files, projects, personalSketches, aiConversationsByContext, deletedFileIds, nextNewFileSequence });
-        lastWorkspaceSignature = getWorkspaceSignature({ files, projects, personalSketches, aiConversationsByContext, deletedFileIds, nextNewFileSequence });
+        const activeFileId = (currentFileIndex >= 0 && currentFileIndex < files.length) ? files[currentFileIndex]?.id : null;
+        await _fb.saveWorkspace(currentUser.uid, {
+            files,
+            projects,
+            personalSketches,
+            aiConversationsByContext,
+            deletedFileIds,
+            nextNewFileSequence,
+            openTabFileIds,
+            activeFileId
+        });
+        lastWorkspaceSignature = getWorkspaceSignature({
+            files,
+            projects,
+            personalSketches,
+            aiConversationsByContext,
+            deletedFileIds,
+            nextNewFileSequence,
+            openTabFileIds,
+            activeFileId
+        });
         dot.className = 'ok';
         if (!silent) showToast("נשמר בענן!", "cloud-arrow-up", "#22c55e");
     } catch(e) {
@@ -3245,6 +3285,7 @@ function openFile(i) {
     renderProjectsAndFiles(); renderTabs(); livePreview(); updateStats();
     recalculateSearchResults();
     ensureConversationLoadedForCurrentFile();
+    saveToStorage();
 }
 
 function closeTab(tabIndex) {
@@ -3414,7 +3455,7 @@ function renameFile(fileId) {
     showToast("שם הקובץ עודכן", "check-circle", "#22c55e");
 }
 
-function deleteFile(fileId) {
+async function deleteFile(fileId) {
     const fileIndex = getFileIndexById(fileId);
     if (fileIndex < 0) return;
     const fileName = files[fileIndex]?.name || 'קובץ ללא שם';
@@ -3431,7 +3472,7 @@ function deleteFile(fileId) {
     });
     openTabFileIds = openTabFileIds.filter(id => id !== fileId);
 
-    if (!files.length) {
+    if (!files.length || openTabFileIds.length === 0) {
         currentFileIndex = -1;
         editor.value = '';
         setEditorLanguageByFilename('');
@@ -3440,15 +3481,8 @@ function deleteFile(fileId) {
         activeAIContextKey = 'global';
         renderAIConversation();
     } else {
-        const nextIndex = Math.min(fileIndex, files.length - 1);
-        currentFileIndex = nextIndex;
-        if (currentFileIndex >= 0) {
-            ensureActiveFileTab();
-            editor.value = files[currentFileIndex].content || '';
-            setEditorLanguageByFilename(files[currentFileIndex].name);
-            document.getElementById('current-file-name').textContent = files[currentFileIndex].name;
-            ensureConversationLoadedForCurrentFile();
-        }
+        const nextFileIndex = getFileIndexById(openTabFileIds[0]);
+        if (nextFileIndex >= 0) openFile(nextFileIndex);
     }
 
     renderProjectsAndFiles();
@@ -3457,6 +3491,7 @@ function deleteFile(fileId) {
     updateStats();
     recalculateSearchResults();
     saveToStorage();
+    await saveToFirebase({ silent: true });
     showToast(`הקובץ "${fileName}" נמחק`, "trash", "#ff5555");
 }
 
@@ -3779,9 +3814,6 @@ function init() {
         }
     } catch(e) {}
 
-    if (files.length === 0) {
-        files = [{ id:1, name:'index.html', content:'' }];
-    }
     syncNextNewFileSequenceFromFiles();
 
     reconcileOpenTabs();
@@ -3789,7 +3821,6 @@ function init() {
         const firstOpenIndex = getFileIndexById(openTabFileIds[0]);
         if (firstOpenIndex >= 0) currentFileIndex = firstOpenIndex;
     }
-    if (currentFileIndex < 0 && files.length > 0) currentFileIndex = 0;
     if (currentFileIndex >= 0 && currentFileIndex < files.length) {
         ensureActiveFileTab();
     } else {
