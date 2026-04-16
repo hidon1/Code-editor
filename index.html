@@ -2233,6 +2233,16 @@ function captureWorkspaceSnapshot() {
     };
 }
 
+function clearActiveFileSelection() {
+    currentFileIndex = -1;
+    openTabFileIds = [];
+    editor.value = '';
+    setEditorLanguageByFilename('');
+    document.getElementById('current-file-name').textContent = 'אין קובץ פתוח';
+    aiConversationHistory = [];
+    activeAIContextKey = 'global';
+}
+
 function restoreWorkspaceSnapshot(snapshot) {
     if (!snapshot) return;
     files = (snapshot.files || []).map(f => ({ ...f }));
@@ -2244,18 +2254,7 @@ function restoreWorkspaceSnapshot(snapshot) {
 
     if (files.length === 0) files = [{ id: 1, name: 'index.html', content: '' }];
     syncNextNewFileSequenceFromFiles();
-    currentFileIndex = files.length > 0 ? 0 : -1;
-    openTabFileIds = files.length > 0 ? [files[0].id] : [];
-
-    if (currentFileIndex >= 0) {
-        editor.value = files[currentFileIndex].content || '';
-        setEditorLanguageByFilename(files[currentFileIndex].name);
-        document.getElementById('current-file-name').textContent = files[currentFileIndex].name;
-    } else {
-        editor.value = '';
-        setEditorLanguageByFilename('');
-        document.getElementById('current-file-name').textContent = 'אין קבצים';
-    }
+    clearActiveFileSelection();
 
     renderProjectsAndFiles();
     renderTabs();
@@ -2301,17 +2300,7 @@ function applyWorkspaceData(workspaceData) {
         }
         syncNextNewFileSequenceFromFiles();
 
-        currentFileIndex = files.length > 0 ? 0 : -1;
-        openTabFileIds = files.length > 0 ? [files[0].id] : [];
-        if (files.length > 0) {
-            editor.value = files[0].content;
-            setEditorLanguageByFilename(files[0].name);
-            document.getElementById('current-file-name').textContent = files[0].name;
-        } else {
-            editor.value = '';
-            setEditorLanguageByFilename('');
-            document.getElementById('current-file-name').textContent = 'אין קבצים';
-        }
+        clearActiveFileSelection();
 
         renderProjectsAndFiles();
         renderTabs();
@@ -3771,14 +3760,7 @@ function init() {
     }
     syncNextNewFileSequenceFromFiles();
 
-    reconcileOpenTabs();
-    if (!openTabFileIds.length && files[0]) openTabFileIds = [files[0].id];
-    currentFileIndex = getFileIndexById(openTabFileIds[0]);
-    if (currentFileIndex < 0 && files[0]) {
-        currentFileIndex = 0;
-        openTabFileIds = [files[0].id];
-    }
-    document.getElementById('current-file-name').textContent = files[currentFileIndex]?.name || 'אין קובץ פתוח';
+    clearActiveFileSelection();
     renderProjectsAndFiles(); renderTabs();
     ensureConversationLoadedForCurrentFile();
     codeSearchInput.addEventListener('keydown', e => {
