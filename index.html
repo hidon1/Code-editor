@@ -1217,6 +1217,8 @@ let searchMatches = [];
 let currentSearchMatchIndex = -1;
 let sketchCounter = 1;
 let personalSketches = [];
+const CLOUD_AUTOSAVE_DELAY_MS = 5 * 60 * 1000;
+const ACTIVE_FILE_STORAGE_KEY = 'codesphere_active_file_id_v1';
 
 const SKETCH_TEMPLATES = [
     {
@@ -2185,6 +2187,7 @@ function replaceAllMatches() {
 
 function saveToStorage() {
     try {
+        const activeFileId = (currentFileIndex >= 0 && currentFileIndex < files.length) ? files[currentFileIndex]?.id : null;
         localStorage.setItem('codesphere_files_v4', JSON.stringify(files));
         localStorage.setItem('codesphere_projects_v1', JSON.stringify(projects));
         localStorage.setItem('codesphere_personal_sketches_v1', JSON.stringify(personalSketches));
@@ -2193,6 +2196,7 @@ function saveToStorage() {
         localStorage.setItem('codesphere_open_tabs_v1', JSON.stringify(openTabFileIds));
         localStorage.setItem('codesphere_next_file_sequence_v1', String(nextNewFileSequence));
         localStorage.setItem('codesphere_deleted_file_ids_v1', JSON.stringify(deletedFileIds));
+        localStorage.setItem(ACTIVE_FILE_STORAGE_KEY, JSON.stringify(activeFileId));
     } catch(e) {}
     if (!isApplyingRemoteWorkspace) scheduleCloudAutoSave();
 }
@@ -2203,7 +2207,7 @@ function scheduleCloudAutoSave() {
     clearTimeout(cloudSaveTimer);
     cloudSaveTimer = setTimeout(() => {
         saveToFirebase({ silent: true, auto: true });
-    }, 700);
+    }, CLOUD_AUTOSAVE_DELAY_MS);
 }
 
 function getWorkspaceSignature(workspaceData) {
@@ -2233,9 +2237,10 @@ function captureWorkspaceSnapshot() {
     };
 }
 
-function clearActiveFileSelection() {
+function clearActiveFileSelection(options = {}) {
+    const { clearTabs = false } = options;
     currentFileIndex = -1;
-    openTabFileIds = [];
+    if (clearTabs) openTabFileIds = [];
     editor.value = '';
     setEditorLanguageByFilename('');
     document.getElementById('current-file-name').textContent = 'אין קובץ פתוח';
@@ -2280,6 +2285,7 @@ function applyWorkspaceData(workspaceData) {
     if (nextSignature === lastWorkspaceSignature) return;
     isApplyingRemoteWorkspace = true;
     try {
+        const previousActiveFileId = (currentFileIndex >= 0 && currentFileIndex < files.length) ? files[currentFileIndex]?.id : null;
         deletedFileIds = Array.isArray(workspaceData?.deletedFileIds) ? workspaceData.deletedFileIds : [];
         const deletedSet = new Set(deletedFileIds.map(id => String(id)));
         const remoteFiles = (workspaceData?.files || []).map((f, idx) => ({
@@ -2300,7 +2306,19 @@ function applyWorkspaceData(workspaceData) {
         }
         syncNextNewFileSequenceFromFiles();
 
-        clearActiveFileSelection();
+        reconcileOpenTabs();
+        let nextActiveIndex = previousActiveFileId == null ? -1 : getFileIndexById(previousActiveFileId);
+        if (nextActiveIndex < 0 && openTabFileIds.length > 0) nextActiveIndex = getFileIndexById(openTabFileIds[0]);
+        if (nextActiveIndex < 0 && files.length > 0) nextActiveIndex = 0;
+        if (nextActiveIndex >= 0) {
+            currentFileIndex = nextActiveIndex;
+            ensureActiveFileTab();
+            editor.value = files[nextActiveIndex].content || '';
+            setEditorLanguageByFilename(files[nextActiveIndex].name);
+            document.getElementById('current-file-name').textContent = files[nextActiveIndex].name;
+        } else {
+            clearActiveFileSelection({ clearTabs: true });
+        }
 
         renderProjectsAndFiles();
         renderTabs();
@@ -3745,6 +3763,7 @@ function init() {
         const sot = localStorage.getItem('codesphere_open_tabs_v1');
         const snfs = localStorage.getItem('codesphere_next_file_sequence_v1');
         const sdeleted = localStorage.getItem('codesphere_deleted_file_ids_v1');
+        const saf = localStorage.getItem(ACTIVE_FILE_STORAGE_KEY);
         if (sf) files    = JSON.parse(sf);
         if (sp) projects = JSON.parse(sp);
         if (ssk) personalSketches = JSON.parse(ssk);
@@ -3753,6 +3772,11 @@ function init() {
         if (sot) openTabFileIds = JSON.parse(sot);
         if (snfs) nextNewFileSequence = Number(snfs) || 1;
         if (sdeleted) deletedFileIds = JSON.parse(sdeleted);
+        if (saf) {
+            const activeFileId = JSON.parse(saf);
+            const activeFileIndex = getFileIndexById(activeFileId);
+            if (activeFileIndex >= 0) currentFileIndex = activeFileIndex;
+        }
     } catch(e) {}
 
     if (files.length === 0) {
@@ -3760,7 +3784,17 @@ function init() {
     }
     syncNextNewFileSequenceFromFiles();
 
-    clearActiveFileSelection();
+    reconcileOpenTabs();
+    if (currentFileIndex < 0 && openTabFileIds.length > 0) {
+        const firstOpenIndex = getFileIndexById(openTabFileIds[0]);
+        if (firstOpenIndex >= 0) currentFileIndex = firstOpenIndex;
+    }
+    if (currentFileIndex < 0 && files.length > 0) currentFileIndex = 0;
+    if (currentFileIndex >= 0 && currentFileIndex < files.length) {
+        ensureActiveFileTab();
+    } else {
+        clearActiveFileSelection({ clearTabs: true });
+    }
     renderProjectsAndFiles(); renderTabs();
     ensureConversationLoadedForCurrentFile();
     codeSearchInput.addEventListener('keydown', e => {
