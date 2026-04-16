@@ -523,8 +523,8 @@
         <button onclick="quickSave()" class="btn-icon btn-save" title="שמור מהיר (Ctrl+Q)">
             <i class="fas fa-save"></i>
         </button>
-        <button onclick="saveAsFile()" class="btn btn-primary" title="שמור בשם (Ctrl+S)">
-            <i class="fas fa-file-arrow-down"></i><span>שמור</span>
+        <button onclick="saveMainAction()" class="btn btn-primary" title="שמור בענן (Ctrl+S)">
+            <i class="fas fa-cloud-arrow-up"></i><span>שמור</span>
         </button>
         <button onclick="createPublicLink()" class="btn btn-share">
             <i class="fas fa-share-alt"></i><span>שתף</span>
@@ -732,6 +732,9 @@
         <h2 style="color:var(--primary);margin-bottom:14px;"><i class="fas fa-folder-plus"></i> הוסף לפרויקט</h2>
         <div id="add-to-project-list" style="max-height:220px;overflow-y:auto;margin-bottom:14px;"></div>
         <div class="modal-actions">
+            <button id="add-to-project-confirm-btn" onclick="confirmAddFilesToProject()" class="btn btn-primary" style="display:none;">
+                <i class="fas fa-check"></i> אישור
+            </button>
             <button onclick="closeAddToProjectModal()" class="btn" style="background:#444;color:white;">ביטול</button>
         </div>
     </div>
@@ -912,6 +915,7 @@ let cloudSaveTimer = null;
 let isApplyingRemoteWorkspace = false;
 let lastWorkspaceSignature = '';
 let _shareUrl = '';
+let addToProjectState = null;
 let _authMode = 'login'; // 'login' | 'register'
 
 const editorElement = document.getElementById('code-editor');
@@ -1849,6 +1853,14 @@ async function createPublicLink() {
     const f = files[currentFileIndex];
     f.content = editor.value; // ensure latest content
 
+    if (f.cloudId) {
+        const existingUrl = `${getBaseUrl()}viewer.html?id=${f.cloudId}`;
+        _shareUrl = existingUrl;
+        openShareLinkModal(existingUrl);
+        showToast("קישור קבוע נטען", "link", "#22c55e");
+        return;
+    }
+
     const isNew = !f.cloudId;
     try {
         showToast(isNew ? "יוצר קישור לאתר..." : "מעדכן קובץ בענן...", "cloud-arrow-up", "#7b5eff");
@@ -2307,6 +2319,13 @@ function quickSave() {
     showToast("נשמר", "check-circle", "#22c55e");
 }
 
+async function saveMainAction() {
+    if (currentFileIndex < 0) { showToast("אין קובץ פעיל", "exclamation-circle", "#ff9800"); return; }
+    files[currentFileIndex].content = editor.value;
+    saveToStorage();
+    await saveToFirebase();
+}
+
 async function saveAsFile() {
     if (currentFileIndex < 0) { showToast("אין קובץ", "exclamation-circle", "#ff9800"); return; }
     const currentName = files[currentFileIndex].name || 'index.html';
@@ -2371,6 +2390,8 @@ function removeFileFromProject(fileId, projectId) {
 }
 function showAddToProject(fileId) {
     if (projects.length === 0) { showToast("צור פרויקט קודם", "folder-plus", "#ff9800"); return; }
+    addToProjectState = null;
+    document.getElementById('add-to-project-confirm-btn').style.display = 'none';
     document.getElementById('add-to-project-list').innerHTML = projects.map(p =>
         `<div class="share-file-item" onclick="addFileToProject(${fileId},${p.id})">
             <i class="fas fa-folder" style="color:#f59e0b;"></i> <span>${p.name}</span>
@@ -2381,11 +2402,35 @@ function showAddFileToProject(projectId) {
     const p = projects.find(x => x.id === projectId); if (!p) return;
     const available = files.filter(f => !p.fileIds.includes(f.id));
     if (available.length === 0) { showToast("כל הקבצים כבר בפרויקט", "info-circle", "#ff9800"); return; }
+    addToProjectState = { projectId, mode: 'multi' };
+    document.getElementById('add-to-project-confirm-btn').style.display = 'inline-flex';
     document.getElementById('add-to-project-list').innerHTML = available.map(f =>
-        `<div class="share-file-item" onclick="addFileToProject(${f.id},${projectId})">
-            <i class="fas fa-file-code" style="color:var(--primary);"></i> <span>${f.name}</span>
+        `<div class="share-file-item">
+            <input type="checkbox" id="ap-${f.id}" value="${f.id}" style="cursor:pointer;accent-color:var(--primary);">
+            <label for="ap-${f.id}"><i class="fas fa-file-code" style="color:var(--primary);"></i> ${f.name}</label>
         </div>`).join('');
     document.getElementById('add-to-project-modal').style.display = 'flex';
+}
+function confirmAddFilesToProject() {
+    if (!addToProjectState || addToProjectState.mode !== 'multi') return;
+    const p = projects.find(x => x.id === addToProjectState.projectId);
+    if (!p) return;
+    const checked = document.querySelectorAll('#add-to-project-list input[type=checkbox]:checked');
+    if (checked.length === 0) { showToast("בחר לפחות קובץ אחד", "exclamation-circle", "#ff9800"); return; }
+    let added = 0;
+    checked.forEach(cb => {
+        const fileId = parseInt(cb.value);
+        if (!p.fileIds.includes(fileId)) {
+            p.fileIds.push(fileId);
+            added += 1;
+        }
+    });
+    if (added > 0) {
+        renderProjectsAndFiles();
+        saveToStorage();
+        showToast(`${added} קבצים נוספו לפרויקט`, "folder-plus", "#f59e0b");
+    }
+    closeAddToProjectModal();
 }
 function addFileToProject(fileId, projectId) {
     const p = projects.find(x => x.id === projectId);
@@ -2395,7 +2440,11 @@ function addFileToProject(fileId, projectId) {
     }
     closeAddToProjectModal();
 }
-function closeAddToProjectModal() { document.getElementById('add-to-project-modal').style.display = 'none'; }
+function closeAddToProjectModal() {
+    addToProjectState = null;
+    document.getElementById('add-to-project-confirm-btn').style.display = 'none';
+    document.getElementById('add-to-project-modal').style.display = 'none';
+}
 
 function openShareProjectModal() {
     if (projects.length === 0) { showToast("אין פרויקטים לשתף", "exclamation-circle", "#ff9800"); return; }
@@ -2652,7 +2701,7 @@ function init() {
     });
 
     document.addEventListener('keydown', e => {
-        if (e.ctrlKey && e.key === 's') { e.preventDefault(); saveAsFile(); }
+        if (e.ctrlKey && e.key === 's') { e.preventDefault(); saveMainAction(); }
         if (e.ctrlKey && e.key === 'q') { e.preventDefault(); quickSave(); }
         if (e.ctrlKey && e.key.toLowerCase() === 'f') {
             e.preventDefault();
