@@ -354,6 +354,23 @@
         .ai-message { padding: 12px 16px; border-radius: 14px; max-width: 86%; font-size: 13.5px; line-height: 1.5; }
         .ai-user { align-self: flex-end; background: linear-gradient(135deg, var(--primary), #00a8cc); color: #000; font-weight: 500; }
         .ai-bot { align-self: flex-start; background: var(--surface3); border: 1px solid var(--border); }
+        .ai-bot-header { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); margin-bottom: 6px; font-weight: 600; }
+        .ai-bot-header img { width: 14px; height: 14px; border-radius: 50%; object-fit: cover; }
+        .ai-answer-title { font-weight: 700; margin-bottom: 4px; color: var(--text); }
+        .ai-loading-message {
+            min-height: 170px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            border-style: dashed;
+        }
+        .ai-loading-message img {
+            width: 140px;
+            height: 140px;
+            object-fit: contain;
+            filter: drop-shadow(0 12px 28px rgba(0,0,0,0.35));
+        }
         .ai-empty-prompts {
             border: 1px dashed var(--border); border-radius: 12px; padding: 12px;
             background: var(--surface2); display: flex; flex-direction: column; gap: 8px;
@@ -1038,6 +1055,7 @@ let isPreviewOpen = false, isAIPanelOpen = false, isFilesSidebarOpen = false;
 let currentPreviewDevice = 'desktop';
 let pendingAIChange = null;
 let aiConversationsByContext = {};
+let aiRequestStateByContext = {};
 let aiConversationHistory = [];
 let activeAIContextKey = 'global';
 let isAIRequestInFlight = false;
@@ -1384,11 +1402,45 @@ function ensureConversationLoadedForCurrentFile() {
     aiConversationHistory = Array.isArray(aiConversationsByContext[activeAIContextKey])
         ? [...aiConversationsByContext[activeAIContextKey]]
         : [];
+    setAIThinkingState(isCurrentContextProcessing());
     renderAIConversation();
 }
 
 function persistAIConversation() {
     aiConversationsByContext[activeAIContextKey] = [...aiConversationHistory];
+}
+
+function setCurrentAIRequestState(isProcessing) {
+    aiRequestStateByContext[activeAIContextKey] = {
+        isProcessing: Boolean(isProcessing),
+        updatedAt: Date.now()
+    };
+}
+
+function isCurrentContextProcessing() {
+    return Boolean(aiRequestStateByContext?.[activeAIContextKey]?.isProcessing);
+}
+
+function createAILoadingMessage() {
+    const loading = document.createElement('div');
+    loading.className = 'ai-message ai-bot ai-loading-message';
+    loading.innerHTML = `<img src="${AI_THINKING_ICON}" alt="AI חושב" onerror="this.src='${AI_IDLE_ICON}'">`;
+    return loading;
+}
+
+function renderProcessingMessageIfNeeded() {
+    if (!isCurrentContextProcessing()) return;
+    aiMessages.appendChild(createAILoadingMessage());
+}
+
+function escapeHTML(value = '') {
+    return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;')
+        .replaceAll('\n', '<br>');
 }
 
 function hasAnyCodeInWorkspace() {
@@ -1429,9 +1481,11 @@ function renderAIConversation() {
             : 'מה תרצה לבנות היום?';
         aiMessages.appendChild(welcome);
         if (!hasAnyCodeInWorkspace()) renderAIEmptySuggestions();
+        renderProcessingMessageIfNeeded();
         return;
     }
     aiConversationHistory.forEach(msg => addAIMessage(msg.role === 'user' ? 'user' : 'bot', msg.content, false));
+    renderProcessingMessageIfNeeded();
     aiMessages.scrollTop = aiMessages.scrollHeight;
 }
 
@@ -2044,6 +2098,7 @@ function saveToStorage() {
         localStorage.setItem('codesphere_projects_v1', JSON.stringify(projects));
         localStorage.setItem('codesphere_personal_sketches_v1', JSON.stringify(personalSketches));
         localStorage.setItem('codesphere_ai_conversations_v1', JSON.stringify(aiConversationsByContext));
+        localStorage.setItem('codesphere_ai_request_state_v1', JSON.stringify(aiRequestStateByContext));
         localStorage.setItem('codesphere_open_tabs_v1', JSON.stringify(openTabFileIds));
     } catch(e) {}
     if (!isApplyingRemoteWorkspace) scheduleCloudAutoSave();
@@ -2585,7 +2640,18 @@ function toggleAIPanel() {
 function addAIMessage(type, text, autoScroll = true) {
     const msg = document.createElement('div');
     msg.className = `ai-message ${type === 'user' ? 'ai-user' : 'ai-bot'}`;
-    msg.textContent = text;
+    if (type === 'user') {
+        msg.textContent = text;
+    } else {
+        msg.innerHTML = `
+            <div class="ai-bot-header">
+                <img src="${AI_IDLE_ICON}" alt="AI" onerror="this.src='${AI_IDLE_ICON}'">
+                <span>AI</span>
+            </div>
+            <div class="ai-answer-title">התשובה:</div>
+            <div>${escapeHTML(text)}</div>
+        `;
+    }
     aiMessages.appendChild(msg);
     if (autoScroll) aiMessages.scrollTop = aiMessages.scrollHeight;
 }
@@ -2606,6 +2672,8 @@ async function handleAIRequest() {
     if (aiSendBtn) aiSendBtn.disabled = true;
     if (aiStopBtn) aiStopBtn.classList.add('show');
     setAIThinkingState(true);
+    setCurrentAIRequestState(true);
+    saveToStorage();
     input.disabled = true;
     currentAIRequestController = new AbortController();
 
@@ -2615,9 +2683,7 @@ async function handleAIRequest() {
     saveToStorage();
     input.value = '';
 
-    const loading = document.createElement('div');
-    loading.className = 'ai-message ai-bot';
-    loading.innerHTML = `<span style="display:inline-flex;align-items:center;gap:8px;"><img src="${AI_THINKING_ICON}" alt="AI חושב" style="width:18px;height:18px;border-radius:50%;object-fit:cover;" onerror="this.src='${AI_IDLE_ICON}'">מעבד בקשה...</span>`;
+    const loading = createAILoadingMessage();
     aiMessages.appendChild(loading);
     aiMessages.scrollTop = aiMessages.scrollHeight;
 
@@ -2674,7 +2740,15 @@ async function handleAIRequest() {
         persistAIConversation();
         saveToStorage();
 
-        loading.textContent = `${description} אשר כדי להחיל את השינוי.`;
+        loading.classList.remove('ai-loading-message');
+        loading.innerHTML = `
+            <div class="ai-bot-header">
+                <img src="${AI_IDLE_ICON}" alt="AI" onerror="this.src='${AI_IDLE_ICON}'">
+                <span>AI</span>
+            </div>
+            <div class="ai-answer-title">התשובה:</div>
+            <div>${escapeHTML(`${description} אשר כדי להחיל את השינוי.`)}</div>
+        `;
         document.getElementById('ai-suggestion-text').innerHTML = `<strong>בקשה:</strong><br>${prompt}<br><br><strong>סיכום:</strong><br>${description}`;
         document.getElementById('confirm-modal').style.display = 'flex';
     } catch (error) {
@@ -2691,6 +2765,8 @@ async function handleAIRequest() {
         if (aiSendBtn) aiSendBtn.disabled = false;
         if (aiStopBtn) aiStopBtn.classList.remove('show');
         setAIThinkingState(false);
+        setCurrentAIRequestState(false);
+        saveToStorage();
         input.disabled = false;
     }
 }
@@ -3311,11 +3387,13 @@ function init() {
         const sp = localStorage.getItem('codesphere_projects_v1');
         const ssk = localStorage.getItem('codesphere_personal_sketches_v1');
         const sach = localStorage.getItem('codesphere_ai_conversations_v1');
+        const sairs = localStorage.getItem('codesphere_ai_request_state_v1');
         const sot = localStorage.getItem('codesphere_open_tabs_v1');
         if (sf) files    = JSON.parse(sf);
         if (sp) projects = JSON.parse(sp);
         if (ssk) personalSketches = JSON.parse(ssk);
         if (sach) aiConversationsByContext = JSON.parse(sach);
+        if (sairs) aiRequestStateByContext = JSON.parse(sairs);
         if (sot) openTabFileIds = JSON.parse(sot);
     } catch(e) {}
 
