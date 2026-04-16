@@ -405,7 +405,16 @@
             text-align: right; font-size: 12px; line-height: 1.4;
         }
         .ai-empty-prompt-btn:hover { border-color: var(--primary); color: var(--primary); }
-        .ai-input-area { padding: 13px; background: var(--surface2); border-top: 1px solid var(--border); flex-shrink: 0; display:flex; gap:8px; align-items:center; }
+        .ai-input-area {
+            padding: 13px;
+            background: var(--surface2);
+            border-top: 1px solid var(--border);
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .ai-input-main { display: flex; gap: 8px; align-items: center; }
         .ai-input-area input {
             flex: 1; padding: 11px 16px; border: 1px solid var(--border);
             background: var(--surface); border-radius: 9999px;
@@ -425,6 +434,21 @@
             color: #fff; font-weight: 700; cursor: pointer; display: none;
         }
         .ai-stop-btn.show { display: inline-flex; align-items: center; }
+        .ai-chat-actions { display: inline-flex; gap: 8px; }
+        .ai-chat-small-btn {
+            border: 1px solid var(--border);
+            background: var(--surface3);
+            color: var(--text-muted);
+            border-radius: 9999px;
+            font-size: 11.5px;
+            padding: 5px 10px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .ai-chat-small-btn:hover { border-color: var(--primary); color: var(--primary); }
+        .ai-chat-small-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
         /* HAMBURGER MENU */
         .sidebar-menu {
@@ -737,14 +761,24 @@
         <div class="ai-message ai-bot">שלום! מה תרצה שאשנה בקוד?</div>
     </div>
     <div class="ai-input-area">
-        <input type="text" id="ai-input" placeholder="לדוגמה: הוסף כפתור כחול..."
-               onkeypress="if(event.key==='Enter') handleAIRequest()">
-        <button id="ai-send-btn" class="ai-send-btn" onclick="handleAIRequest()" title="שליחה">
-            <i class="fas fa-paper-plane"></i>
-        </button>
-        <button id="ai-stop-btn" class="ai-stop-btn" onclick="stopAIRequest()">
-            <i class="fas fa-stop"></i>&nbsp;עצור
-        </button>
+        <div class="ai-chat-actions">
+            <button id="ai-undo-text-btn" class="ai-chat-small-btn" onclick="undoLastAIChange()">
+                <i class="fas fa-rotate-left"></i> בטל פעולה אחרונה
+            </button>
+            <button id="ai-redo-text-btn" class="ai-chat-small-btn" onclick="redoLastAIChange()">
+                <i class="fas fa-rotate-right"></i> החזר פעולה
+            </button>
+        </div>
+        <div class="ai-input-main">
+            <input type="text" id="ai-input" placeholder="לדוגמה: הוסף כפתור כחול..."
+                   onkeypress="if(event.key==='Enter') handleAIRequest()">
+            <button id="ai-send-btn" class="ai-send-btn" onclick="handleAIRequest()" title="שליחה">
+                <i class="fas fa-paper-plane"></i>
+            </button>
+            <button id="ai-stop-btn" class="ai-stop-btn" onclick="stopAIRequest()">
+                <i class="fas fa-stop"></i>&nbsp;עצור
+            </button>
+        </div>
     </div>
 </div>
 
@@ -934,18 +968,6 @@
         </ul>
         <div class="modal-actions" style="margin-top:16px;">
             <button onclick="closeGuideModal()" class="btn btn-primary">סגור מדריך</button>
-        </div>
-    </div>
-</div>
-
-<!-- ═══ MODAL: AI Confirm ═══ -->
-<div class="modal" id="confirm-modal">
-    <div class="modal-content">
-        <h2 style="color:var(--primary);margin-bottom:13px;">אשר שינוי AI</h2>
-        <div id="ai-suggestion-text" style="margin-bottom:16px;color:var(--text-muted);font-size:14px;line-height:1.6;"></div>
-        <div class="modal-actions">
-            <button onclick="cancelAIChange()" class="btn" style="background:#444;color:white;">ביטול</button>
-            <button onclick="approveAIChange()" class="btn btn-primary">אשר שינוי</button>
         </div>
     </div>
 </div>
@@ -1172,6 +1194,8 @@ const aiFabIcon = document.getElementById('ai-fab-icon');
 const aiHeaderIcon = document.getElementById('ai-header-icon');
 const aiUndoBtn = document.getElementById('ai-undo-btn');
 const aiRedoBtn = document.getElementById('ai-redo-btn');
+const aiUndoTextBtn = document.getElementById('ai-undo-text-btn');
+const aiRedoTextBtn = document.getElementById('ai-redo-text-btn');
 const AI_IDLE_ICON = "סמל קבוע AI.svg";
 const AI_THINKING_ICON = "סמל חושבAI.svg";
 const previewCodeNav = document.getElementById('preview-code-nav');
@@ -1184,6 +1208,8 @@ setAIThinkingState(false);
 function updateAIHistoryButtons() {
     if (aiUndoBtn) aiUndoBtn.disabled = aiChangeHistory.length === 0;
     if (aiRedoBtn) aiRedoBtn.disabled = aiRedoHistory.length === 0;
+    if (aiUndoTextBtn) aiUndoTextBtn.disabled = aiChangeHistory.length === 0;
+    if (aiRedoTextBtn) aiRedoTextBtn.disabled = aiRedoHistory.length === 0;
 }
 updateAIHistoryButtons();
 
@@ -3081,9 +3107,6 @@ function redoLastAIChange() {
     updateAIHistoryButtons();
     showToast('בוצעה החזרה קדימה של פעולת AI', 'rotate-right', '#22c55e');
 }
-
-function approveAIChange() {}
-function cancelAIChange() {}
 
 /* ═══════════════════════════════════════════════
    FILES SIDEBAR
