@@ -560,11 +560,11 @@
         <button class="ai-fab" onclick="toggleAIPanel()" title="AI בונה אתרים">
             <img src="סמל קבוע AI.svg" alt="AI" class="ai-fab-icon">
         </button>
-        <button onclick="quickSave()" class="btn-icon btn-save" title="שמור מהיר (Ctrl+Q)">
-            <i class="fas fa-save"></i>
+        <button onclick="quickSave()" class="btn-icon btn-cloud" title="שמור מהיר בענן (Ctrl+Q)">
+            <i class="fas fa-cloud-arrow-up"></i>
         </button>
-        <button onclick="saveMainAction()" class="btn btn-primary" title="שמור בענן (Ctrl+S)">
-            <i class="fas fa-cloud-arrow-up"></i><span>שמור</span>
+        <button onclick="saveMainAction()" class="btn btn-primary" title="שמור למחשב (Ctrl+S)">
+            <i class="fas fa-floppy-disk"></i><span>שמור</span>
         </button>
         <button onclick="downloadCurrentFile()" class="btn" title="הורד קובץ פתוח">
             <i class="fas fa-download"></i><span>הורד</span>
@@ -725,9 +725,6 @@
     <div class="menu-item" onclick="openSketchFromMenu()">
         <i class="fas fa-lightbulb" style="color:#facc15;"></i><span>סקיצות ותבניות</span>
     </div>
-    <div class="menu-item" onclick="resetPasswordAndSignOut()">
-        <i class="fas fa-key" style="color:#38bdf8;"></i><span>איפוס סיסמה והתנתקות</span>
-    </div>
     <div class="menu-item" onclick="openSubscriptionsModal()">
         <i class="fas fa-credit-card" style="color:#a78bfa;"></i><span>מנויים וחיובים</span>
     </div>
@@ -845,12 +842,22 @@
 <div class="modal" id="guide-modal">
     <div class="modal-content" style="max-width:760px;line-height:1.8;">
         <h2 style="color:var(--primary);margin-bottom:12px;"><i class="fas fa-book-open"></i> מדריך שימוש ב-CodeSphere</h2>
+        <h3 style="margin:10px 0 6px;">עקרונות עבודה כלליים</h3>
+        <ul style="padding-right:20px;color:var(--text-muted);font-size:14px;">
+            <li>לפני כל פעולה חשוב לבחור את הקובץ הנכון מהטאבים או מרשימת הקבצים.</li>
+            <li>המערכת שומרת את סביבת העבודה (קבצים, פרויקטים, סקיצות ושיחות AI) גם מקומית וגם בענן כשמחוברים.</li>
+            <li>שמירה רגילה (<strong>שמור / Ctrl+S</strong>) שומרת קובץ במחשב שלך דרך סייר הקבצים.</li>
+            <li>שמירה מהירה (<strong>Ctrl+Q</strong>) מבצעת גיבוי וסנכרון לענן של החשבון המחובר.</li>
+            <li>רצוי לעבוד עם שמות קבצים ברורים (למשל <code>index.html</code>, <code>styles.css</code>, <code>app.js</code>) כדי לשפר את עבודת ה-AI.</li>
+        </ul>
         <h3 style="margin:10px 0 6px;">כללי AI והקשר שיחה</h3>
         <ul style="padding-right:20px;color:var(--text-muted);font-size:14px;">
             <li>לכל קובץ יש שיחה נפרדת הנשמרת מקומית וגם בענן.</li>
             <li>במעבר בין קבצים, חלון הצ'אט מתחלף להיסטוריה של הקובץ הפעיל.</li>
             <li>אם הקובץ שייך לפרויקט, כל קבצי הפרויקט נשלחים יחד ל-AI כדי לאפשר שינוי חוצה קבצים.</li>
             <li>בכל בקשה נשלחת גם היסטוריית השיחה העדכנית כדי לשמור רצף והקשר.</li>
+            <li>כאשר פותחים שוב קובץ שכבר עבדת עליו מול ה-AI, השיחה ממשיכה מאותה נקודה בדיוק.</li>
+            <li>מומלץ לנסח בקשות ממוקדות: מה לשנות, באיזה קובץ, ואיך התוצאה צריכה להיראות.</li>
         </ul>
         <h3 style="margin:10px 0 6px;">מה אפשר לבצע במערכת</h3>
         <ul style="padding-right:20px;color:var(--text-muted);font-size:14px;">
@@ -859,6 +866,15 @@
             <li><strong>תצוגה מקדימה:</strong> צפייה חיה באתר במצבי מחשב/טאבלט/נייד.</li>
             <li><strong>חיפוש והחלפה:</strong> בתוך הקובץ הפעיל בלבד, כולל מעבר בין תוצאות.</li>
             <li><strong>שמירה בענן:</strong> סביבת העבודה נשמרת ומסונכרנת לחשבון המחובר.</li>
+            <li><strong>עריכת פרופיל:</strong> עדכון שם, תמונת פרופיל, איפוס סיסמה והתנתקות ממקום אחד.</li>
+        </ul>
+        <h3 style="margin:10px 0 6px;">טיפים לעבודה יעילה</h3>
+        <ul style="padding-right:20px;color:var(--text-muted);font-size:14px;">
+            <li>בצע שמירה מקומית לפני שינויים גדולים כדי ליצור נקודת חזרה מהירה.</li>
+            <li>אם ה-AI מחזיר שינוי גדול, קרא את תיאור השינוי לפני אישור כדי להבין מה הוחלף.</li>
+            <li>עבור פרויקטים עם כמה קבצים, שמור קבצים קשורים באותו פרויקט לקבלת תוצאות מדויקות יותר.</li>
+            <li>השתמש בחיפוש/החלפה כדי לעדכן שמות מחלקות או טקסטים באופן עקבי.</li>
+            <li>במצב תצוגה מקדימה בדוק גם מובייל וגם דסקטופ כדי לזהות בעיות רספונסיביות מוקדם.</li>
         </ul>
         <h3 style="margin:10px 0 6px;">מבנה המסכים</h3>
         <ul style="padding-right:20px;color:var(--text-muted);font-size:14px;">
@@ -959,11 +975,12 @@
             <div class="user-avatar" id="profile-avatar-preview" style="width:56px;height:56px;font-size:21px;">?</div>
             <div style="flex:1;">
                 <div style="font-size:13px;color:var(--text-muted);margin-bottom:6px;">תמונת פרופיל</div>
-                <input type="file" id="profile-image-input" accept="image/*" class="modal-input" style="margin:0;" onchange="uploadProfileImage()">
+                <input type="file" id="profile-image-input" accept="image/*" class="modal-input" style="margin:0;" onchange="previewSelectedProfileImage()">
             </div>
         </div>
         <div class="modal-actions">
             <button onclick="saveProfileChanges()" class="btn btn-save"><i class="fas fa-floppy-disk"></i> שמור שינויים</button>
+            <button onclick="resetPasswordAndSignOut()" class="btn"><i class="fas fa-key"></i> איפוס סיסמה והתנתקות</button>
             <button onclick="signOutUser()" class="btn"><i class="fas fa-right-from-bracket"></i> התנתק</button>
             <button onclick="openDeleteAccountModal()" class="btn" style="background:#ff5555;color:white;"><i class="fas fa-trash"></i> מחק חשבון לצמיתות</button>
             <button onclick="closeProfileModal()" class="btn btn-primary">סגור</button>
@@ -1031,6 +1048,7 @@ let _fb = null;        // Firebase helpers
 let _auth = null;      // Firebase auth instance
 let _storage = null;   // Firebase storage instance
 let currentUser = null;
+let pendingProfileImageFile = null;
 let workspaceUnsubscribe = null;
 let cloudSaveTimer = null;
 let isApplyingRemoteWorkspace = false;
@@ -1479,11 +1497,22 @@ async function callAIWorker(route, payload, signal = undefined) {
                     files:    data.files.map(f => ({ id: f.id, name: f.name, content: f.content })),
                     projects: data.projects,
                     personalSketches: Array.isArray(data.personalSketches) ? data.personalSketches : [],
+                    aiConversationsByContext: data.aiConversationsByContext || {},
                     updatedAt: serverTimestamp()
                 });
             },
             async loadWorkspace(uid) {
                 const snap = await getDoc(doc(db, 'codesphere_workspaces', uid));
+                return snap.exists() ? snap.data() : null;
+            },
+            async saveUserProfile(uid, profileData) {
+                await setDoc(doc(db, 'codesphere_users', uid), {
+                    ...profileData,
+                    updatedAt: serverTimestamp()
+                }, { merge: true });
+            },
+            async loadUserProfile(uid) {
+                const snap = await getDoc(doc(db, 'codesphere_users', uid));
                 return snap.exists() ? snap.data() : null;
             },
             /* Create new share OR update existing one — returns the permanent cloudId */
@@ -1523,6 +1552,26 @@ async function callAIWorker(route, payload, signal = undefined) {
         /* ── Auth state listener ── */
         onAuthStateChanged(_auth, async user => {
             currentUser = user;
+            pendingProfileImageFile = null;
+            if (user && _fb) {
+                try {
+                    const storedProfile = await _fb.loadUserProfile(user.uid);
+                    if (storedProfile && (storedProfile.displayName || storedProfile.photoURL)) {
+                        const profileUpdate = {};
+                        if (storedProfile.displayName && storedProfile.displayName !== user.displayName) {
+                            profileUpdate.displayName = storedProfile.displayName;
+                        }
+                        if (storedProfile.photoURL && storedProfile.photoURL !== user.photoURL) {
+                            profileUpdate.photoURL = storedProfile.photoURL;
+                        }
+                        if (Object.keys(profileUpdate).length) {
+                            await _auth._helpers.updateProfile(user, profileUpdate);
+                        }
+                    }
+                } catch (profileError) {
+                    console.warn('Profile sync failed:', profileError?.message || profileError);
+                }
+            }
             updateAuthUI(user);
             if (user) {
                 try {
@@ -1762,6 +1811,7 @@ function openProfileModal() {
     }
     document.getElementById('profile-name-input').value = name;
     document.getElementById('profile-image-input').value = '';
+    pendingProfileImageFile = null;
     document.getElementById('profile-modal').style.display = 'flex';
     toggleSidebarMenu();
 }
@@ -1770,32 +1820,29 @@ function closeProfileModal() {
     document.getElementById('profile-modal').style.display = 'none';
 }
 
-async function uploadProfileImage() {
-    if (!_auth || !_storage || !currentUser) return;
+function previewSelectedProfileImage() {
     const input = document.getElementById('profile-image-input');
     const file = input?.files?.[0];
     if (!file) return;
-    try {
-        const maxBytes = 3 * 1024 * 1024;
-        if (file.size > maxBytes) {
-            showToast('תמונה גדולה מדי (עד 3MB)', 'triangle-exclamation', '#ff9800');
-            return;
-        }
-        const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
-        const path = `profile-images/${currentUser.uid}/avatar.${ext}`;
-        const ref = _auth._helpers.storageRef(_storage, path);
-        await _auth._helpers.uploadBytes(ref, file, { contentType: file.type || 'image/jpeg' });
-        const url = await _auth._helpers.getDownloadURL(ref);
-        await _auth._helpers.updateProfile(currentUser, { photoURL: url });
-        updateAuthUI(currentUser);
-        showToast('תמונת הפרופיל נשמרה', 'image', '#22c55e');
-    } catch (error) {
-        showToast(`שגיאה בהעלאת תמונה: ${error?.message || 'נכשל'}`, 'triangle-exclamation', '#ff5555');
+    const maxBytes = 3 * 1024 * 1024;
+    if (file.size > maxBytes) {
+        showToast('תמונה גדולה מדי (עד 3MB)', 'triangle-exclamation', '#ff9800');
+        input.value = '';
+        pendingProfileImageFile = null;
+        return;
     }
+    pendingProfileImageFile = file;
+    const reader = new FileReader();
+    reader.onload = () => {
+        const preview = document.getElementById('profile-avatar-preview');
+        preview.innerHTML = `<img src="${reader.result}" alt="profile preview">`;
+    };
+    reader.readAsDataURL(file);
+    showToast('נבחרה תמונה חדשה - לחץ שמור שינויים כדי להעלות לענן', 'image', '#22c55e');
 }
 
 async function saveProfileChanges() {
-    if (!_auth || !currentUser) return;
+    if (!_auth || !_storage || !currentUser) return;
     const nameInput = document.getElementById('profile-name-input');
     const displayName = String(nameInput?.value || '').trim();
     if (!displayName) {
@@ -1803,11 +1850,31 @@ async function saveProfileChanges() {
         return;
     }
     try {
-        await _auth._helpers.updateProfile(currentUser, { displayName });
+        let nextPhotoURL = currentUser.photoURL || '';
+        if (pendingProfileImageFile) {
+            const ext = (pendingProfileImageFile.name.split('.').pop() || 'jpg').toLowerCase();
+            const path = `profile-images/${currentUser.uid}/avatar.${ext}`;
+            const ref = _auth._helpers.storageRef(_storage, path);
+            await _auth._helpers.uploadBytes(ref, pendingProfileImageFile, {
+                contentType: pendingProfileImageFile.type || 'image/jpeg'
+            });
+            nextPhotoURL = await _auth._helpers.getDownloadURL(ref);
+        }
+
+        await _auth._helpers.updateProfile(currentUser, { displayName, photoURL: nextPhotoURL || null });
+        if (_fb) {
+            await _fb.saveUserProfile(currentUser.uid, {
+                displayName,
+                photoURL: nextPhotoURL || null,
+                email: currentUser.email || ''
+            });
+        }
         updateAuthUI(currentUser);
-        showToast('השם נשמר בהצלחה', 'floppy-disk', '#22c55e');
+        pendingProfileImageFile = null;
+        document.getElementById('profile-image-input').value = '';
+        showToast('הפרופיל נשמר בהצלחה בפיירבייס', 'floppy-disk', '#22c55e');
     } catch (error) {
-        showToast(`שגיאה בשמירת שם: ${error?.message || 'נכשל'}`, 'triangle-exclamation', '#ff5555');
+        showToast(`שגיאה בשמירת פרופיל: ${error?.message || 'נכשל'}`, 'triangle-exclamation', '#ff5555');
     }
 }
 
@@ -2836,13 +2903,14 @@ async function quickSave() {
     files[currentFileIndex].content = editor.value;
     saveToStorage();
     await saveToFirebase();
+    showToast("שמירה מהירה בענן הושלמה", "cloud-arrow-up", "#22c55e");
 }
 
 async function saveMainAction() {
     if (currentFileIndex < 0) { showToast("אין קובץ פעיל", "exclamation-circle", "#ff9800"); return; }
     files[currentFileIndex].content = editor.value;
     saveToStorage();
-    await saveToFirebase();
+    await saveAsFile();
 }
 
 function downloadCurrentFile() {
