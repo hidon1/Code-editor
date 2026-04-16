@@ -1049,6 +1049,7 @@
 let files = [], projects = [];
 let currentFileIndex = -1;
 let openTabFileIds = [];
+let nextNewFileSequence = 1;
 let isPreviewOpen = false, isAIPanelOpen = false, isFilesSidebarOpen = false;
 let currentPreviewDevice = 'desktop';
 let pendingAIChange = null;
@@ -1566,6 +1567,7 @@ async function callAIWorker(route, payload, signal = undefined) {
                     projects: data.projects,
                     personalSketches: Array.isArray(data.personalSketches) ? data.personalSketches : [],
                     aiConversationsByContext: data.aiConversationsByContext || {},
+                    nextNewFileSequence: Number.isFinite(data.nextNewFileSequence) ? data.nextNewFileSequence : 1,
                     updatedAt: serverTimestamp()
                 });
             },
@@ -2108,6 +2110,7 @@ function saveToStorage() {
         localStorage.setItem('codesphere_ai_conversations_v1', JSON.stringify(aiConversationsByContext));
         localStorage.setItem('codesphere_ai_request_state_v1', JSON.stringify(aiRequestStateByContext));
         localStorage.setItem('codesphere_open_tabs_v1', JSON.stringify(openTabFileIds));
+        localStorage.setItem('codesphere_next_file_sequence_v1', String(nextNewFileSequence));
     } catch(e) {}
     if (!isApplyingRemoteWorkspace) scheduleCloudAutoSave();
 }
@@ -2129,9 +2132,20 @@ function getWorkspaceSignature(workspaceData) {
         })),
         projects: Array.isArray(workspaceData?.projects) ? workspaceData.projects : [],
         personalSketches: Array.isArray(workspaceData?.personalSketches) ? workspaceData.personalSketches : [],
-        aiConversationsByContext: workspaceData?.aiConversationsByContext || {}
+        aiConversationsByContext: workspaceData?.aiConversationsByContext || {},
+        nextNewFileSequence: Number.isFinite(workspaceData?.nextNewFileSequence) ? workspaceData.nextNewFileSequence : 1
     };
     return JSON.stringify(normalized);
+}
+
+function syncNextNewFileSequenceFromFiles() {
+    const maxNamedSequence = files.reduce((max, file) => {
+        const match = String(file?.name || '').match(/^קובץ-(\d+)\./);
+        if (!match) return max;
+        const num = Number(match[1]);
+        return Number.isFinite(num) ? Math.max(max, num) : max;
+    }, 0);
+    nextNewFileSequence = Math.max(nextNewFileSequence, maxNamedSequence + 1, 1);
 }
 
 function applyWorkspaceData(workspaceData) {
@@ -2147,10 +2161,12 @@ function applyWorkspaceData(workspaceData) {
         projects = Array.isArray(workspaceData?.projects) ? workspaceData.projects : [];
         personalSketches = Array.isArray(workspaceData?.personalSketches) ? workspaceData.personalSketches : [];
         aiConversationsByContext = workspaceData?.aiConversationsByContext || {};
+        nextNewFileSequence = Number.isFinite(workspaceData?.nextNewFileSequence) ? workspaceData.nextNewFileSequence : 1;
 
         if (files.length === 0) {
             files = [{ id: 1, name: 'index.html', content: '' }];
         }
+        syncNextNewFileSequenceFromFiles();
 
         currentFileIndex = files.length > 0 ? 0 : -1;
         openTabFileIds = files.length > 0 ? [files[0].id] : [];
@@ -2188,7 +2204,7 @@ async function startWorkspaceSync(uid) {
         applyWorkspaceData(cloudWorkspace);
         showToast("הסביבה נטענה מהענן בפתיחת המכשיר", "cloud-arrow-down", "#22c55e");
     } else if (files.length > 0 || projects.length > 0) {
-        await _fb.saveWorkspace(uid, { files, projects, personalSketches, aiConversationsByContext });
+        await _fb.saveWorkspace(uid, { files, projects, personalSketches, aiConversationsByContext, nextNewFileSequence });
         showToast("הועלה גיבוי ראשון לענן", "cloud-arrow-up", "#22c55e");
     }
 }
@@ -2211,8 +2227,8 @@ async function saveToFirebase(options = {}) {
     dot.className = 'saving';
     try {
         if (!silent) showToast("שומר בענן...", "cloud-arrow-up", "#ff9800");
-        await _fb.saveWorkspace(currentUser.uid, { files, projects, personalSketches, aiConversationsByContext });
-        lastWorkspaceSignature = getWorkspaceSignature({ files, projects, personalSketches, aiConversationsByContext });
+        await _fb.saveWorkspace(currentUser.uid, { files, projects, personalSketches, aiConversationsByContext, nextNewFileSequence });
+        lastWorkspaceSignature = getWorkspaceSignature({ files, projects, personalSketches, aiConversationsByContext, nextNewFileSequence });
         dot.className = 'ok';
         if (!silent) showToast("נשמר בענן!", "cloud-arrow-up", "#22c55e");
     } catch(e) {
@@ -2989,7 +3005,8 @@ function closeTab(tabIndex) {
 }
 
 function newFile() {
-    const f = { id: Date.now(), name: `קובץ-${files.length+1}.html`, content: '' };
+    const fileSequence = nextNewFileSequence++;
+    const f = { id: Date.now(), name: `קובץ-${fileSequence}.html`, content: '' };
     files.push(f); currentFileIndex = files.length - 1;
     editor.value = f.content;
     setEditorLanguageByFilename(f.name);
@@ -3467,17 +3484,20 @@ function init() {
         const sach = localStorage.getItem('codesphere_ai_conversations_v1');
         const sairs = localStorage.getItem('codesphere_ai_request_state_v1');
         const sot = localStorage.getItem('codesphere_open_tabs_v1');
+        const snfs = localStorage.getItem('codesphere_next_file_sequence_v1');
         if (sf) files    = JSON.parse(sf);
         if (sp) projects = JSON.parse(sp);
         if (ssk) personalSketches = JSON.parse(ssk);
         if (sach) aiConversationsByContext = JSON.parse(sach);
         if (sairs) aiRequestStateByContext = JSON.parse(sairs);
         if (sot) openTabFileIds = JSON.parse(sot);
+        if (snfs) nextNewFileSequence = Number(snfs) || 1;
     } catch(e) {}
 
     if (files.length === 0) {
         files = [{ id:1, name:'index.html', content:'' }];
     }
+    syncNextNewFileSequenceFromFiles();
 
     reconcileOpenTabs();
     if (!openTabFileIds.length && files[0]) openTabFileIds = [files[0].id];
