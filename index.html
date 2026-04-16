@@ -389,7 +389,7 @@
             text-align: right; font-size: 12px; line-height: 1.4;
         }
         .ai-empty-prompt-btn:hover { border-color: var(--primary); color: var(--primary); }
-        .ai-input-area { padding: 13px; background: var(--surface2); border-top: 1px solid var(--border); flex-shrink: 0; display:flex; gap:8px; align-items:center; }
+        .ai-input-area { padding: 13px; background: var(--surface2); border-top: 1px solid var(--border); flex-shrink: 0; display:flex; gap:8px; align-items:center; flex-wrap: wrap; }
         .ai-input-area input {
             flex: 1; padding: 11px 16px; border: 1px solid var(--border);
             background: var(--surface); border-radius: 9999px;
@@ -409,6 +409,28 @@
             color: #fff; font-weight: 700; cursor: pointer; display: none;
         }
         .ai-stop-btn.show { display: inline-flex; align-items: center; }
+        .ai-history-actions {
+            width: 100%;
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+        .ai-history-btn {
+            border: 1px solid var(--border);
+            border-radius: 9999px;
+            padding: 6px 10px;
+            background: var(--surface3);
+            color: var(--text);
+            font-size: 11.5px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .ai-history-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
 
         /* HAMBURGER MENU */
         .sidebar-menu {
@@ -721,6 +743,14 @@
         <button id="ai-stop-btn" class="ai-stop-btn" onclick="stopAIRequest()">
             <i class="fas fa-stop"></i>&nbsp;עצור
         </button>
+        <div class="ai-history-actions">
+            <button id="ai-undo-btn" class="ai-history-btn" onclick="undoLastAIChange()" title="בטל פעולה אחרונה">
+                <i class="fas fa-rotate-left"></i> בטל פעולה אחרונה
+            </button>
+            <button id="ai-redo-btn" class="ai-history-btn" onclick="redoLastAIChange()" title="החזר פעולה קדימה">
+                <i class="fas fa-rotate-right"></i> החזר קדימה
+            </button>
+        </div>
     </div>
 </div>
 
@@ -1084,6 +1114,9 @@ let lastWorkspaceSignature = '';
 let _shareUrl = '';
 let addToProjectState = null;
 let _authMode = 'login'; // 'login' | 'register'
+let aiUndoStack = [];
+let aiRedoStack = [];
+const AI_HISTORY_LIMIT = 30;
 
 const editorElement = document.getElementById('code-editor');
 let monacoEditor = null;
@@ -1141,6 +1174,8 @@ const searchInlineCount = document.getElementById('search-inline-count');
 const aiSendBtn = document.getElementById('ai-send-btn');
 const aiStopBtn = document.getElementById('ai-stop-btn');
 const aiInput = document.getElementById('ai-input');
+const aiUndoBtn = document.getElementById('ai-undo-btn');
+const aiRedoBtn = document.getElementById('ai-redo-btn');
 const aiFabIcon = document.getElementById('ai-fab-icon');
 const aiHeaderIcon = document.getElementById('ai-header-icon');
 const AI_IDLE_ICON = "סמל קבוע AI.svg";
@@ -1151,6 +1186,7 @@ const previewCodePrev = document.getElementById('preview-code-prev');
 const previewCodeNext = document.getElementById('preview-code-next');
 
 setAIThinkingState(false);
+updateAIHistoryButtons();
 
 let searchMatches = [];
 let currentSearchMatchIndex = -1;
@@ -2847,6 +2883,75 @@ function setAIThinkingState(isThinking) {
     });
 }
 
+function cloneWorkspaceSnapshot() {
+    return {
+        files: files.map(file => ({ ...file })),
+        currentFileIndex,
+        openTabFileIds: [...openTabFileIds]
+    };
+}
+
+function restoreWorkspaceSnapshot(snapshot) {
+    if (!snapshot || !Array.isArray(snapshot.files)) return;
+    files = snapshot.files.map(file => ({ ...file }));
+    openTabFileIds = Array.isArray(snapshot.openTabFileIds) ? [...snapshot.openTabFileIds] : [];
+
+    if (!files.length) {
+        createNewFile();
+        return;
+    }
+
+    const nextIndex = Number.isInteger(snapshot.currentFileIndex) ? snapshot.currentFileIndex : 0;
+    currentFileIndex = Math.min(Math.max(nextIndex, 0), files.length - 1);
+
+    reconcileOpenTabs();
+    renderProjectsAndFiles();
+    renderTabs();
+    openFile(currentFileIndex);
+    livePreview();
+    saveToStorage();
+}
+
+function updateAIHistoryButtons() {
+    if (aiUndoBtn) aiUndoBtn.disabled = aiUndoStack.length === 0;
+    if (aiRedoBtn) aiRedoBtn.disabled = aiRedoStack.length === 0;
+}
+
+function rememberAIChange(previousSnapshot) {
+    if (!previousSnapshot) return;
+    aiUndoStack.push(previousSnapshot);
+    if (aiUndoStack.length > AI_HISTORY_LIMIT) aiUndoStack.shift();
+    aiRedoStack = [];
+    updateAIHistoryButtons();
+}
+
+function undoLastAIChange() {
+    if (!aiUndoStack.length) {
+        showToast('אין פעולה אחרונה לביטול', 'info-circle', '#f59e0b');
+        return;
+    }
+    const shouldUndo = confirm('לבטל את שינוי ה-AI האחרון ולהחזיר את הקוד צעד אחד אחורה?');
+    if (!shouldUndo) return;
+
+    aiRedoStack.push(cloneWorkspaceSnapshot());
+    const previousSnapshot = aiUndoStack.pop();
+    restoreWorkspaceSnapshot(previousSnapshot);
+    updateAIHistoryButtons();
+    showToast('השינוי האחרון בוטל');
+}
+
+function redoLastAIChange() {
+    if (!aiRedoStack.length) {
+        showToast('אין פעולה להחזרה קדימה', 'info-circle', '#f59e0b');
+        return;
+    }
+    aiUndoStack.push(cloneWorkspaceSnapshot());
+    const nextSnapshot = aiRedoStack.pop();
+    restoreWorkspaceSnapshot(nextSnapshot);
+    updateAIHistoryButtons();
+    showToast('השינוי הוחזר קדימה');
+}
+
 async function handleAIRequest() {
     const input = aiInput;
     const prompt = input.value.trim();
@@ -2905,15 +3010,25 @@ async function handleAIRequest() {
         persistAIConversation();
         saveToStorage();
 
+        const workspaceBeforeAIApply = cloneWorkspaceSnapshot();
+        if (pendingAIChange && Array.isArray(pendingAIChange.files) && pendingAIChange.files.length) {
+            upsertFilesFromAI(pendingAIChange.files, {
+                preferredOpenName: pendingAIChange.activeFileName || '',
+                activeFileIndex: pendingAIChange.activeFileIndex ?? -1
+            });
+            rememberAIChange(workspaceBeforeAIApply);
+            livePreview();
+            showToast('הקוד עודכן אוטומטית על ידי AI');
+        }
+
         loading.classList.remove('ai-loading-message');
         loading.innerHTML = `
             <div class="ai-bot-header">
                 <img src="${AI_IDLE_ICON}" alt="AI" onerror="this.src='${AI_IDLE_ICON}'">
             </div>
-            <div>${escapeHTML(`${description} אשר כדי להחיל את השינוי.`)}</div>
+            <div>${escapeHTML(`${description} השינוי הוחל אוטומטית. ניתן ללחוץ "בטל פעולה אחרונה" לשחזור.`)}</div>
         `;
-        document.getElementById('ai-suggestion-text').innerHTML = `<strong>בקשה:</strong><br>${prompt}<br><br><strong>סיכום:</strong><br>${description}`;
-        document.getElementById('confirm-modal').style.display = 'flex';
+        pendingAIChange = null;
     } catch (error) {
         if (error?.name === 'AbortError') {
             loading.textContent = 'הבקשה נעצרה.';
