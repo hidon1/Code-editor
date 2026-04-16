@@ -1563,11 +1563,15 @@ async function callAIWorker(route, payload, signal = undefined) {
         _fb = {
             async saveWorkspace(uid, data) {
                 await setDoc(doc(db, 'codesphere_workspaces', uid), {
-                    files:    data.files.map(f => ({ id: f.id, name: f.name, content: f.content })),
+                    files:    data.files.map(f => ({ id: f.id, name: f.name, content: f.content, cloudId: f.cloudId || null })),
                     projects: data.projects,
                     personalSketches: Array.isArray(data.personalSketches) ? data.personalSketches : [],
                     aiConversationsByContext: data.aiConversationsByContext || {},
                     nextNewFileSequence: Number.isFinite(data.nextNewFileSequence) ? data.nextNewFileSequence : 1,
+                    workspaceUi: {
+                        openTabFileIds: Array.isArray(data.workspaceUi?.openTabFileIds) ? data.workspaceUi.openTabFileIds : [],
+                        activeFileId: data.workspaceUi?.activeFileId || null
+                    },
                     updatedAt: serverTimestamp()
                 });
             },
@@ -2108,7 +2112,18 @@ function saveToStorage() {
 }
 
 function getCurrentWorkspaceSnapshot() {
-    return { files, projects, personalSketches, aiConversationsByContext, nextNewFileSequence };
+    const activeFileId = (currentFileIndex >= 0 && files[currentFileIndex]) ? files[currentFileIndex].id : null;
+    return {
+        files,
+        projects,
+        personalSketches,
+        aiConversationsByContext,
+        nextNewFileSequence,
+        workspaceUi: {
+            openTabFileIds: Array.isArray(openTabFileIds) ? [...openTabFileIds] : [],
+            activeFileId
+        }
+    };
 }
 
 function hasPendingWorkspaceChanges() {
@@ -2142,12 +2157,17 @@ function getWorkspaceSignature(workspaceData) {
         files: (workspaceData?.files || []).map(f => ({
             id: f.id || '',
             name: f.name || '',
-            content: f.content || ''
+            content: f.content || '',
+            cloudId: f.cloudId || ''
         })),
         projects: Array.isArray(workspaceData?.projects) ? workspaceData.projects : [],
         personalSketches: Array.isArray(workspaceData?.personalSketches) ? workspaceData.personalSketches : [],
         aiConversationsByContext: workspaceData?.aiConversationsByContext || {},
-        nextNewFileSequence: Number.isFinite(workspaceData?.nextNewFileSequence) ? workspaceData.nextNewFileSequence : 1
+        nextNewFileSequence: Number.isFinite(workspaceData?.nextNewFileSequence) ? workspaceData.nextNewFileSequence : 1,
+        workspaceUi: {
+            openTabFileIds: Array.isArray(workspaceData?.workspaceUi?.openTabFileIds) ? workspaceData.workspaceUi.openTabFileIds : [],
+            activeFileId: workspaceData?.workspaceUi?.activeFileId || null
+        }
     };
     return JSON.stringify(normalized);
 }
@@ -2170,7 +2190,8 @@ function applyWorkspaceData(workspaceData) {
         files = (workspaceData?.files || []).map((f, idx) => ({
             id: f.id || (Date.now() + idx),
             name: f.name || `file-${idx + 1}.txt`,
-            content: f.content || ''
+            content: f.content || '',
+            cloudId: f.cloudId || null
         }));
         projects = Array.isArray(workspaceData?.projects) ? workspaceData.projects : [];
         personalSketches = Array.isArray(workspaceData?.personalSketches) ? workspaceData.personalSketches : [];
@@ -2182,12 +2203,22 @@ function applyWorkspaceData(workspaceData) {
         }
         syncNextNewFileSequenceFromFiles();
 
-        currentFileIndex = files.length > 0 ? 0 : -1;
-        openTabFileIds = files.length > 0 ? [files[0].id] : [];
-        if (files.length > 0) {
-            editor.value = files[0].content;
-            setEditorLanguageByFilename(files[0].name);
-            document.getElementById('current-file-name').textContent = files[0].name;
+        const savedOpenTabIds = Array.isArray(workspaceData?.workspaceUi?.openTabFileIds)
+            ? workspaceData.workspaceUi.openTabFileIds
+            : [];
+        const validFileIds = new Set(files.map(f => f.id));
+        openTabFileIds = savedOpenTabIds.filter(id => validFileIds.has(id));
+        if (!openTabFileIds.length && files.length > 0) openTabFileIds = [files[0].id];
+
+        const savedActiveFileId = workspaceData?.workspaceUi?.activeFileId;
+        const fallbackActiveFileId = openTabFileIds[0] || files[0]?.id || null;
+        const activeFileId = validFileIds.has(savedActiveFileId) ? savedActiveFileId : fallbackActiveFileId;
+        currentFileIndex = activeFileId ? getFileIndexById(activeFileId) : -1;
+
+        if (currentFileIndex >= 0 && files[currentFileIndex]) {
+            editor.value = files[currentFileIndex].content;
+            setEditorLanguageByFilename(files[currentFileIndex].name);
+            document.getElementById('current-file-name').textContent = files[currentFileIndex].name;
         } else {
             editor.value = '';
             setEditorLanguageByFilename('');
@@ -2213,11 +2244,10 @@ async function startWorkspaceSync(uid) {
         workspaceUnsubscribe = null;
     }
 
-    // Keep startup as an empty tab by request; load from cloud only when user asks explicitly.
     const cloudWorkspace = await _fb.loadWorkspace(uid);
     if (cloudWorkspace) {
-        lastWorkspaceSignature = getWorkspaceSignature(getCurrentWorkspaceSnapshot());
-        showToast("נכנסת בהצלחה — סביבת פתיחה ריקה, טעינה מהענן זמינה ידנית", "cloud", "#22c55e");
+        applyWorkspaceData(cloudWorkspace);
+        showToast("הקבצים נטענו אוטומטית מהענן", "cloud", "#22c55e");
     } else {
         await _fb.saveWorkspace(uid, getCurrentWorkspaceSnapshot());
         lastWorkspaceSignature = getWorkspaceSignature(getCurrentWorkspaceSnapshot());
@@ -2235,6 +2265,31 @@ function toggleTheme() {
 /* ═══════════════════════════════════════════════
    CLOUD SAVE / LOAD (require auth)
 ═══════════════════════════════════════════════ */
+async function syncPermanentSharesForCurrentUser() {
+    if (!_fb || !currentUser) return;
+
+    const sharedFiles = files.filter(file => file?.cloudId);
+    const sharedProjects = projects.filter(project => project?.cloudId);
+
+    const fileTasks = sharedFiles.map(file => _fb.upsertShare(file.cloudId, {
+        projectName: file.name,
+        files: [{ name: file.name, content: file.content || '' }],
+        ownerUid: currentUser.uid,
+        type: 'file'
+    }));
+    const projectTasks = sharedProjects.map(project => {
+        const projectFiles = files.filter(file => project.fileIds.includes(file.id));
+        return _fb.upsertShare(project.cloudId, {
+            projectName: project.name,
+            files: projectFiles.map(file => ({ name: file.name, content: file.content || '' })),
+            ownerUid: currentUser.uid,
+            type: 'project'
+        });
+    });
+
+    await Promise.all([...fileTasks, ...projectTasks]);
+}
+
 async function saveToFirebase(options = {}) {
     const { silent = false, auto = false } = options;
     if (!currentUser) { showAuthModal(); showToast("יש להתחבר לשמירה בענן", "lock", "#ff9800"); return; }
@@ -2243,8 +2298,10 @@ async function saveToFirebase(options = {}) {
     dot.className = 'saving';
     try {
         if (!silent) showToast("שומר בענן...", "cloud-arrow-up", "#ff9800");
-        await _fb.saveWorkspace(currentUser.uid, { files, projects, personalSketches, aiConversationsByContext, nextNewFileSequence });
-        lastWorkspaceSignature = getWorkspaceSignature({ files, projects, personalSketches, aiConversationsByContext, nextNewFileSequence });
+        const workspaceSnapshot = getCurrentWorkspaceSnapshot();
+        await _fb.saveWorkspace(currentUser.uid, workspaceSnapshot);
+        await syncPermanentSharesForCurrentUser();
+        lastWorkspaceSignature = getWorkspaceSignature(workspaceSnapshot);
         dot.className = 'ok';
         if (!silent) showToast("נשמר בענן!", "cloud-arrow-up", "#22c55e");
     } catch(e) {
@@ -2389,14 +2446,6 @@ async function createPublicLink() {
     const f = files[currentFileIndex];
     f.content = editor.value; // ensure latest content
 
-    if (f.cloudId) {
-        const existingUrl = `${getBaseUrl()}viewer.html?id=${f.cloudId}`;
-        _shareUrl = existingUrl;
-        openShareLinkModal(existingUrl);
-        showToast("קישור קבוע נטען", "link", "#22c55e");
-        return;
-    }
-
     const isNew = !f.cloudId;
     try {
         showToast(isNew ? "יוצר קישור לאתר..." : "מעדכן קובץ בענן...", "cloud-arrow-up", "#7b5eff");
@@ -2417,7 +2466,7 @@ async function createPublicLink() {
 
         const url = `${getBaseUrl()}viewer.html?id=${cloudId}`;
         _shareUrl = url;
-        showToast(isNew ? "קישור נוצר!" : "הקובץ עודכן!", "check-circle", "#22c55e");
+        showToast(isNew ? "קישור נוצר!" : "הקישור הקבוע עודכן!", "check-circle", "#22c55e");
         openShareLinkModal(url);
     } catch(e) { showToast("שגיאה: " + e.message, "triangle-exclamation", "#ff5555"); }
 }
