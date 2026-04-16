@@ -1,0 +1,286 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Animated colorful AI robot thinking, moving eyes side to side and scratching its head">
+  <defs>
+    <linearGradient id="bodyGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="55%" stop-color="#eef6ff"/>
+      <stop offset="100%" stop-color="#cfe1ff"/>
+    </linearGradient>
+    <linearGradient id="bodyShade" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f7fbff"/>
+      <stop offset="100%" stop-color="#c5d7f2"/>
+    </linearGradient>
+    <linearGradient id="visorGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#061a42"/>
+      <stop offset="100%" stop-color="#03285d"/>
+    </linearGradient>
+    <linearGradient id="blueGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#6ee7ff"/>
+      <stop offset="45%" stop-color="#42b7ff"/>
+      <stop offset="100%" stop-color="#2763ff"/>
+    </linearGradient>
+    <linearGradient id="purpleGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#7f8cff"/>
+      <stop offset="100%" stop-color="#b46dff"/>
+    </linearGradient>
+    <radialGradient id="shadowGrad" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#6fb8ff" stop-opacity="0.55"/>
+      <stop offset="100%" stop-color="#6fb8ff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="softGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="drop" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="12" stdDeviation="10" flood-color="#123f85" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+
+  <style>
+    .outline{stroke:#0b2550;stroke-width:6;stroke-linecap:round;stroke-linejoin:round}
+    .line{fill:none;stroke:#3c5788;stroke-width:4;stroke-linecap:round}
+    .hoverLine{fill:none;stroke:#4bb8ff;stroke-width:6;stroke-linecap:round}
+    .robot{transform-origin:256px 255px;animation:floatBody 3.2s ease-in-out infinite}
+    .headAll{transform-origin:256px 160px;animation:headThink 18s ease-in-out infinite}
+    .torsoAll{transform-origin:256px 330px;animation:torsoThink 18s ease-in-out infinite}
+    .leftArm{transform-origin:196px 286px;animation:leftUpper 18s ease-in-out infinite}
+    .leftFore{transform-origin:144px 390px;animation:leftLower 18s ease-in-out infinite}
+    .rightArm{transform-origin:316px 286px;animation:rightUpper 18s ease-in-out infinite}
+    .rightFore{transform-origin:368px 390px;animation:rightLower 18s ease-in-out infinite}
+    .rightArmNormal{animation:rightArmFade 18s linear infinite}
+    .scratchPose{opacity:0;animation:scratchPoseShow 18s linear infinite;transform-origin:312px 170px}
+    .scratchPose .handWiggle{transform-origin:335px 118px;animation:scratchWiggle 1.0s ease-in-out infinite}
+    .scratchMarks{opacity:0;animation:scratchMarks 18s linear infinite}
+    .eyes{animation:blink 6.8s infinite;transform-origin:256px 161px}
+    .pupils{animation:thinkingLook 10s ease-in-out infinite}
+    .dot1{animation:typing 1.0s ease-in-out infinite}
+    .dot2{animation:typing 1.0s ease-in-out infinite .18s}
+    .dot3{animation:typing 1.0s ease-in-out infinite .36s}
+    .shadow{transform-origin:256px 458px;animation:shadowPulse 3.2s ease-in-out infinite}
+    .sparkA{animation:glowPulse 1.6s ease-in-out infinite}
+    .sparkB{animation:glowPulse 1.6s ease-in-out infinite .8s}
+    .mark1{animation:markPulse 1.4s ease-in-out infinite}
+    .mark2{animation:markPulse 1.4s ease-in-out infinite .35s}
+    .mark3{animation:markPulse 1.4s ease-in-out infinite .15s}
+    .mark4{animation:markPulse 1.4s ease-in-out infinite .65s}
+    .eyeGlow{animation:eyeAura 2.2s ease-in-out infinite}
+    .antennaGlow{animation:eyeAura 2.8s ease-in-out infinite}
+
+    @keyframes floatBody{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+    @keyframes shadowPulse{0%,100%{transform:scaleX(1);opacity:.3}50%{transform:scaleX(.86);opacity:.16}}
+    @keyframes blink{0%,5%,11%,57%,100%{transform:scaleY(1)}6%,7%,58%,59%{transform:scaleY(.08)}}
+    @keyframes glowPulse{0%,100%{opacity:.35}50%{opacity:1}}
+    @keyframes eyeAura{0%,100%{opacity:.35}50%{opacity:.8}}
+    @keyframes markPulse{0%,100%{opacity:.18}50%{opacity:.92}}
+    @keyframes typing{0%,100%{transform:translateY(0);opacity:.5}50%{transform:translateY(-8px);opacity:1}}
+
+    @keyframes thinkingLook{
+      0%,8%{transform:translate(0,0)}
+      12%,18%{transform:translate(10px,0)}
+      22%,28%{transform:translate(-10px,0)}
+      32%,36%{transform:translate(7px,-7px)}
+      40%,44%{transform:translate(-7px,-7px)}
+      48%,54%{transform:translate(11px,0)}
+      58%,64%{transform:translate(-11px,0)}
+      68%,72%{transform:translate(6px,-6px)}
+      76%,80%{transform:translate(-6px,-6px)}
+      84%,92%{transform:translate(8px,0)}
+      100%{transform:translate(0,0)}
+    }
+
+    @keyframes headThink{
+      0%,8%{transform:rotate(0deg) translate(0,0)}
+      12%,18%{transform:rotate(9deg) translate(3px,-1px)}
+      22%,28%{transform:rotate(-10deg) translate(-3px,-1px)}
+      30%,38%{transform:rotate(12deg) translate(3px,-5px)}
+      42%,48%{transform:rotate(-8deg) translate(-2px,-3px)}
+      52%,58%{transform:rotate(7deg) translate(2px,0)}
+      62%,68%{transform:rotate(-12deg) translate(-4px,-3px)}
+      72%,78%{transform:rotate(10deg) translate(3px,-4px)}
+      82%,90%{transform:rotate(-7deg) translate(-2px,-2px)}
+      100%{transform:rotate(0deg) translate(0,0)}
+    }
+
+    @keyframes torsoThink{
+      0%,100%{transform:rotate(0deg) translate(0,0)}
+      14%,18%{transform:rotate(2deg) translate(4px,0)}
+      24%,28%{transform:rotate(-2deg) translate(-4px,0)}
+      32%,38%{transform:rotate(3deg) translate(5px,-1px)}
+      42%,48%{transform:rotate(-2deg) translate(-3px,-1px)}
+      54%,60%{transform:rotate(2deg) translate(3px,1px)}
+      64%,68%{transform:rotate(-2deg) translate(-3px,1px)}
+      74%,80%{transform:rotate(2deg) translate(4px,0)}
+      84%,90%{transform:rotate(-2deg) translate(-4px,0)}
+    }
+
+    @keyframes leftUpper{
+      0%,14%{transform:rotate(0deg)}
+      18%,24%{transform:rotate(6deg)}
+      28%,34%{transform:rotate(-8deg)}
+      38%,44%{transform:rotate(5deg)}
+      48%,56%{transform:rotate(-5deg)}
+      60%,68%{transform:rotate(9deg)}
+      72%,78%{transform:rotate(-9deg)}
+      82%,90%{transform:rotate(5deg)}
+      100%{transform:rotate(0deg)}
+    }
+    @keyframes leftLower{
+      0%,16%{transform:rotate(0deg)}
+      20%,26%{transform:rotate(-8deg)}
+      30%,36%{transform:rotate(11deg)}
+      40%,46%{transform:rotate(-8deg)}
+      50%,58%{transform:rotate(8deg)}
+      62%,70%{transform:rotate(-12deg)}
+      74%,80%{transform:rotate(10deg)}
+      84%,90%{transform:rotate(-6deg)}
+      100%{transform:rotate(0deg)}
+    }
+
+    @keyframes rightUpper{
+      0%,18%{transform:rotate(0deg)}
+      22%,27%{transform:rotate(-18deg)}
+      29%,44%{transform:rotate(-74deg) translate(2px,-6px)}
+      48%,58%{transform:rotate(-10deg)}
+      62%,70%{transform:rotate(8deg)}
+      74%,82%{transform:rotate(-18deg)}
+      86%,92%{transform:rotate(8deg)}
+      100%{transform:rotate(0deg)}
+    }
+    @keyframes rightLower{
+      0%,20%{transform:rotate(0deg)}
+      24%,28%{transform:rotate(-18deg)}
+      30%,44%{transform:rotate(-42deg) translate(-8px,-8px)}
+      48%,58%{transform:rotate(8deg)}
+      62%,70%{transform:rotate(-10deg)}
+      74%,82%{transform:rotate(14deg)}
+      86%,92%{transform:rotate(-8deg)}
+      100%{transform:rotate(0deg)}
+    }
+
+    @keyframes rightArmFade{
+      0%,28.5%,45.5%,100%{opacity:1}
+      29.5%,44.5%{opacity:0}
+    }
+    @keyframes scratchPoseShow{
+      0%,28.5%,45.5%,100%{opacity:0}
+      29.5%,44.5%{opacity:1}
+    }
+    @keyframes scratchWiggle{
+      0%,100%{transform:rotate(0deg) translate(0,0)}
+      25%{transform:rotate(-6deg) translate(-1px,-2px)}
+      50%{transform:rotate(4deg) translate(2px,1px)}
+      75%{transform:rotate(-5deg) translate(-1px,-1px)}
+    }
+    @keyframes scratchMarks{
+      0%,30%,44%,100%{opacity:0}
+      31%,43%{opacity:1}
+    }
+  </style>
+
+  <ellipse class="shadow" cx="256" cy="458" rx="98" ry="20" fill="url(#shadowGrad)"/>
+
+  <g class="robot" filter="url(#drop)">
+    <g class="headAll">
+      <line x1="256" y1="79" x2="256" y2="44" class="outline"/>
+      <circle cx="256" cy="30" r="16" fill="url(#blueGrad)" class="outline antennaGlow"/>
+      <circle cx="250" cy="24" r="4" fill="#e8f9ff"/>
+
+      <rect x="112" y="66" width="288" height="190" rx="95" fill="url(#bodyGrad)" class="outline"/>
+      <rect x="147" y="100" width="218" height="123" rx="46" fill="url(#visorGrad)"/>
+      <ellipse class="eyeGlow" cx="214" cy="161" rx="31" ry="36" fill="#50bfff" opacity=".16" filter="url(#softGlow)"/>
+      <ellipse class="eyeGlow" cx="298" cy="161" rx="31" ry="36" fill="#50bfff" opacity=".16" filter="url(#softGlow)"/>
+      <path d="M316 112C330 116 342 125 350 138" stroke="#3762ab" stroke-width="10" stroke-linecap="round" opacity=".28" fill="none"/>
+
+      <rect x="95" y="125" width="42" height="74" rx="21" fill="url(#bodyGrad)" class="outline"/>
+      <ellipse cx="116" cy="162" rx="16" ry="24" fill="#1a4d94"/>
+      <path d="M128 138C133 147 135 154 135 162C135 170 133 177 128 186" stroke="#6fd5ff" stroke-width="5" stroke-linecap="round" fill="none"/>
+      <rect x="375" y="125" width="42" height="74" rx="21" fill="url(#bodyGrad)" class="outline"/>
+      <ellipse cx="396" cy="162" rx="16" ry="24" fill="#1a4d94"/>
+      <path d="M384 138C379 147 377 154 377 162C377 170 379 177 384 186" stroke="#6fd5ff" stroke-width="5" stroke-linecap="round" fill="none"/>
+
+      <g class="eyes">
+        <ellipse cx="214" cy="161" rx="23" ry="29" fill="#51bfff"/>
+        <ellipse cx="298" cy="161" rx="23" ry="29" fill="#51bfff"/>
+      </g>
+      <g class="pupils">
+        <circle cx="224" cy="154" r="6" fill="#fff"/>
+        <circle cx="308" cy="154" r="6" fill="#fff"/>
+      </g>
+
+      <g class="scratchMarks">
+        <path d="M328 82L341 96" class="line"/>
+        <path d="M339 75L352 91" class="line"/>
+        <path d="M350 72L360 85" class="line"/>
+      </g>
+    </g>
+
+    <g class="torsoAll">
+      <rect x="206" y="245" width="100" height="24" rx="12" fill="#082451"/>
+      <path d="M218 251H294" stroke="#4068ae" stroke-width="8" stroke-linecap="round" opacity=".5" fill="none"/>
+      <path d="M167 274C180 254 205 246 226 246H286C307 246 332 254 345 274L355 289C363 301 367 315 367 330V355C367 382 345 404 318 404H194C167 404 145 382 145 355V330C145 315 149 301 157 289L167 274Z" fill="url(#bodyGrad)" class="outline"/>
+      <path d="M175 292C205 270 305 270 337 292" fill="none" stroke="#fff" stroke-opacity=".7" stroke-width="8" stroke-linecap="round"/>
+
+      <rect x="205" y="300" width="102" height="62" rx="18" fill="#082758"/>
+      <rect x="214" y="309" width="84" height="44" rx="14" fill="url(#purpleGrad)" opacity=".18"/>
+      <circle class="dot1" cx="228" cy="331" r="10" fill="#59caff"/>
+      <circle class="dot2" cx="256" cy="331" r="10" fill="#d8e7ff"/>
+      <circle class="dot3" cx="284" cy="331" r="10" fill="#59caff"/>
+
+      <path d="M191 405H321C319 435 304 458 256 458C208 458 193 435 191 405Z" fill="url(#bodyShade)" class="outline"/>
+    </g>
+
+    <g class="leftArm">
+      <rect x="126" y="277" width="53" height="120" rx="26" transform="rotate(25 126 277)" fill="url(#bodyGrad)" class="outline"/>
+      <circle cx="144" cy="355" r="18" fill="#1a4d94" class="outline"/>
+      <g class="leftFore">
+        <rect x="116" y="374" width="44" height="76" rx="22" transform="rotate(14 116 374)" fill="url(#bodyGrad)" class="outline"/>
+        <path d="M122 441C122 424 137 413 151 419C158 422 162 428 163 435C166 453 145 462 132 455" fill="#f8fbff" class="outline"/>
+        <path d="M144 429L133 439" class="outline" fill="none"/>
+      </g>
+    </g>
+
+    <g class="rightArmNormal">
+      <g class="rightArm">
+        <rect x="333" y="277" width="53" height="120" rx="26" transform="rotate(-25 333 277)" fill="url(#bodyGrad)" class="outline"/>
+        <circle cx="368" cy="355" r="18" fill="#1a4d94" class="outline"/>
+        <g class="rightFore">
+          <rect x="352" y="374" width="44" height="76" rx="22" transform="rotate(-14 352 374)" fill="url(#bodyGrad)" class="outline"/>
+          <path d="M390 441C390 424 375 413 361 419C354 422 350 428 349 435C346 453 367 462 380 455" fill="#f8fbff" class="outline"/>
+          <path d="M368 429L379 439" class="outline" fill="none"/>
+        </g>
+      </g>
+    </g>
+
+    <!-- scratch pose: hand actually on the head -->
+    <g class="scratchPose">
+      <g transform="translate(0,-2)">
+        <rect x="318" y="250" width="48" height="108" rx="24" transform="rotate(-92 318 250)" fill="url(#bodyGrad)" class="outline"/>
+        <circle cx="333" cy="203" r="17" fill="#1a4d94" class="outline"/>
+        <g class="handWiggle">
+          <rect x="313" y="120" width="42" height="88" rx="21" transform="rotate(-18 313 120)" fill="url(#bodyGrad)" class="outline"/>
+          <path d="M352 117C360 129 360 144 352 155C344 165 331 171 319 165C308 160 305 149 308 139C312 125 334 112 352 117Z" fill="#f9fcff" class="outline"/>
+          <path d="M334 128L343 139" class="outline" fill="none"/>
+          <path d="M323 132L333 143" class="line"/>
+        </g>
+      </g>
+    </g>
+
+    <path class="line mark1" d="M76 149C67 159 67 173 76 183"/>
+    <path class="line mark2" d="M58 141C46 157 46 175 58 191"/>
+    <path class="line mark3" d="M436 149C445 159 445 173 436 183"/>
+    <path class="line mark4" d="M454 141C466 157 466 175 454 191"/>
+    <path class="line mark2" d="M75 327C63 345 63 365 75 383"/>
+    <path class="line mark1" d="M58 319C43 341 43 369 58 391"/>
+    <path class="line mark4" d="M437 327C449 345 449 365 437 383"/>
+    <path class="line mark3" d="M454 319C469 341 469 369 454 391"/>
+
+    <circle cx="167" cy="92" r="7" fill="#7ce8ff" opacity=".75" class="sparkA" filter="url(#softGlow)"/>
+    <circle cx="350" cy="92" r="6" fill="#a581ff" opacity=".7" class="sparkB" filter="url(#softGlow)"/>
+    <circle cx="390" cy="252" r="5" fill="#66d6ff" opacity=".6" class="sparkA" filter="url(#softGlow)"/>
+
+    <path class="hoverLine sparkA" d="M222 421C241 428 271 428 290 421"/>
+    <path class="hoverLine sparkB" d="M230 446C247 452 265 452 282 446"/>
+  </g>
+</svg>
