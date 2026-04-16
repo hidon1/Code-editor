@@ -869,8 +869,8 @@
         <ul style="padding-right:20px;color:var(--text-muted);font-size:14px;">
             <li>לכל קובץ יש שיחה נפרדת הנשמרת מקומית וגם בענן.</li>
             <li>במעבר בין קבצים, חלון הצ'אט מתחלף להיסטוריה של הקובץ הפעיל.</li>
-            <li>אם הקובץ שייך לפרויקט, כל קבצי הפרויקט נשלחים יחד ל-AI כדי לאפשר שינוי חוצה קבצים.</li>
-            <li>בכל בקשה נשלחת גם היסטוריית השיחה העדכנית כדי לשמור רצף והקשר.</li>
+            <li>בכל בקשת AI נשלח רק הקובץ הפעיל כרגע (הטאב הנבחר בעורך).</li>
+            <li>נשלחת רק היסטוריית השיחה של הקובץ הפעיל כדי לשמור רצף והקשר ממוקד.</li>
             <li>כאשר פותחים שוב קובץ שכבר עבדת עליו מול ה-AI, השיחה ממשיכה מאותה נקודה בדיוק.</li>
             <li>מומלץ לנסח בקשות ממוקדות: מה לשנות, באיזה קובץ, ואיך התוצאה צריכה להיראות.</li>
         </ul>
@@ -1417,6 +1417,16 @@ function setCurrentAIRequestState(isProcessing) {
 
 function isCurrentContextProcessing() {
     return Boolean(aiRequestStateByContext?.[activeAIContextKey]?.isProcessing);
+}
+
+function getAIHistoryForPayload(maxItems = 40) {
+    return aiConversationHistory
+        .filter(msg =>
+            msg &&
+            (msg.role === 'user' || msg.role === 'assistant') &&
+            typeof msg.content === 'string'
+        )
+        .slice(-Math.max(0, maxItems));
 }
 
 function createAILoadingMessage() {
@@ -2707,6 +2717,7 @@ async function handleAIRequest() {
     const input = aiInput;
     const prompt = input.value.trim();
     if (!prompt || isAIRequestInFlight) return;
+    const historyForRequest = getAIHistoryForPayload(40);
     isAIRequestInFlight = true;
     if (aiSendBtn) aiSendBtn.disabled = true;
     if (aiStopBtn) aiStopBtn.classList.add('show');
@@ -2738,7 +2749,7 @@ async function handleAIRequest() {
             ? {
                 message: prompt,
                 files: [{ name: activeFile.name, content: activeFile.content || '' }],
-                history: aiConversationHistory.slice(-40),
+                history: historyForRequest,
                 activeFileName: activeFile?.name || null,
                 projectContext: {
                     projectNames: [],

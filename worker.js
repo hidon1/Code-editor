@@ -105,6 +105,17 @@ function buildMessages(userContent, history = []) {
   ];
 }
 
+function normalizeSingleActiveFile(files = []) {
+  if (!Array.isArray(files) || files.length === 0) return [];
+  const first = files[0] || {};
+  return [
+    {
+      name: String(first?.name || "index.html"),
+      content: String(first?.content || ""),
+    },
+  ];
+}
+
 async function callXAI(env, request, messages) {
   // מפתח יכול להגיע מסודיות Cloudflare או מכותרת x-xai-api-key
   const apiKey =
@@ -191,8 +202,10 @@ async function handleChat(request, env) {
   const body = await parseBody(request);
   if (!body.message?.trim()) return apiError('"message" is required', 400);
 
-  const activeFileName = String(body.activeFileName || "").trim();
-  const filesBlock = (body.files ?? [])
+  const requestedActiveFileName = String(body.activeFileName || "").trim();
+  const chatFiles = normalizeSingleActiveFile(body.files ?? []);
+  const activeFileName = requestedActiveFileName || String(chatFiles[0]?.name || "").trim();
+  const filesBlock = chatFiles
     .map((f) => `=== ${f.name} ===\n${f.content || ""}`)
     .join("\n\n");
 
