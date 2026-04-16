@@ -13,5 +13,10 @@ service cloud.firestore {
     match /codesphere_workspaces/{uid} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
+
+    // User profile meta — display name + photo URL (per user)
+    match /codesphere_users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
   }
 }
