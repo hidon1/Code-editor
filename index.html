@@ -37,7 +37,14 @@
             --border: #d0d4e8;
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Heebo', sans-serif; background: var(--bg); color: var(--text); height: 100vh; overflow: hidden; }
+        body {
+            font-family: 'Heebo', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            height: 100vh;
+            height: 100dvh;
+            overflow: hidden;
+        }
 
         /* HEADER */
         .header {
@@ -127,9 +134,15 @@
         .user-avatar img { width: 100%; height: 100%; object-fit: cover; }
 
         /* MAIN */
-        .main-container { display: flex; height: calc(100vh - 56px); margin-top: 56px; min-width: 0; }
+        .main-container {
+            display: flex;
+            height: calc(100vh - 56px);
+            height: calc(100dvh - 56px);
+            margin-top: 56px;
+            min-width: 0;
+        }
         .main-container.preview-open .editor-area { flex: 1 1 55%; }
-        .editor-area { flex: 1; display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
+        .editor-area { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; }
 
         /* Tabs */
         .tabs {
@@ -137,6 +150,7 @@
             border-bottom: 1px solid var(--border); min-height: 42px; overflow-x: auto; flex-shrink: 0;
             align-items: stretch;
             position: sticky; top: 0; z-index: 12;
+            box-shadow: inset 0 -1px 0 rgba(0, 212, 255, 0.12);
         }
         .tabs::-webkit-scrollbar { height: 2px; }
         .tabs::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
@@ -187,7 +201,7 @@
             height: 28px; background: var(--surface); border-top: 1px solid var(--border);
             display: flex; align-items: center; font-size: 11.5px; color: var(--text-muted);
             padding: 0 14px; gap: 16px; flex-shrink: 0;
-            position: sticky; bottom: 0; z-index: 12;
+            margin-top: auto; z-index: 12;
         }
         .status-bar-sep { width: 1px; height: 14px; background: var(--border); }
         .ai-fab {
@@ -203,7 +217,7 @@
         /* FILES SIDEBAR */
         .files-sidebar {
             position: fixed; top: 56px; right: -330px; width: 330px;
-            height: calc(100vh - 56px); background: var(--surface);
+            height: calc(100vh - 56px); height: calc(100dvh - 56px); background: var(--surface);
             border-left: 1px solid var(--border); box-shadow: none;
             transition: right 0.38s cubic-bezier(0.32,0.72,0,1);
             display: flex; flex-direction: column; z-index: 400;
@@ -301,6 +315,7 @@
         /* AI PANEL */
         .ai-panel {
             position: fixed; top: 56px; bottom: 0; right: -490px; width: 490px;
+            height: calc(100vh - 56px); height: calc(100dvh - 56px);
             background: var(--surface); border-left: 1px solid var(--border);
             box-shadow: none;
             transition: right 0.45s cubic-bezier(0.32,0.72,0,1);
@@ -328,7 +343,7 @@
 
         /* HAMBURGER MENU */
         .sidebar-menu {
-            position: fixed; top: 0; right: -450px; width: 450px; height: 100vh;
+            position: fixed; top: 0; right: -450px; width: 450px; height: 100vh; height: 100dvh;
             background: var(--surface); box-shadow: none;
             z-index: 9999; transition: right 0.45s cubic-bezier(0.32,0.72,0,1); overflow-y: auto;
         }
