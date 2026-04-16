@@ -560,9 +560,6 @@
         <button class="ai-fab" onclick="toggleAIPanel()" title="AI בונה אתרים">
             <img src="סמל קבוע AI.svg" alt="AI" class="ai-fab-icon">
         </button>
-        <button onclick="openSketchModal()" class="btn" title="סקיצות ותבניות">
-            <i class="fas fa-lightbulb"></i><span>סקיצה</span>
-        </button>
         <button onclick="quickSave()" class="btn-icon btn-save" title="שמור מהיר (Ctrl+Q)">
             <i class="fas fa-save"></i>
         </button>
@@ -724,6 +721,15 @@
     </div>
     <div class="menu-item" onclick="toggleFilesSidebar();toggleSidebarMenu()">
         <i class="fas fa-folder-open" style="color:#f59e0b;"></i><span>ניהול פרויקטים וקבצים</span>
+    </div>
+    <div class="menu-item" onclick="openSketchFromMenu()">
+        <i class="fas fa-lightbulb" style="color:#facc15;"></i><span>סקיצות ותבניות</span>
+    </div>
+    <div class="menu-item" onclick="resetPasswordAndSignOut()">
+        <i class="fas fa-key" style="color:#38bdf8;"></i><span>איפוס סיסמה והתנתקות</span>
+    </div>
+    <div class="menu-item" onclick="openSubscriptionsModal()">
+        <i class="fas fa-credit-card" style="color:#a78bfa;"></i><span>מנויים וחיובים</span>
     </div>
     <div class="menu-item" onclick="openGuideModal();toggleSidebarMenu()">
         <i class="fas fa-book-open" style="color:#22c55e;"></i><span>מדריך שימוש וכללים</span>
@@ -948,6 +954,7 @@
 <div class="modal" id="profile-modal">
     <div class="modal-content" style="max-width:440px;">
         <h2 style="color:var(--primary);margin-bottom:12px;"><i class="fas fa-user-gear"></i> עריכת פרופיל</h2>
+        <input type="text" id="profile-name-input" class="modal-input" placeholder="שם תצוגה">
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
             <div class="user-avatar" id="profile-avatar-preview" style="width:56px;height:56px;font-size:21px;">?</div>
             <div style="flex:1;">
@@ -956,10 +963,28 @@
             </div>
         </div>
         <div class="modal-actions">
+            <button onclick="saveProfileChanges()" class="btn btn-save"><i class="fas fa-floppy-disk"></i> שמור שינויים</button>
             <button onclick="signOutUser()" class="btn"><i class="fas fa-right-from-bracket"></i> התנתק</button>
             <button onclick="openDeleteAccountModal()" class="btn" style="background:#ff5555;color:white;"><i class="fas fa-trash"></i> מחק חשבון לצמיתות</button>
             <button onclick="closeProfileModal()" class="btn btn-primary">סגור</button>
         </div>
+    </div>
+</div>
+
+<!-- ═══ MODAL: Subscriptions & Billing ═══ -->
+<div class="modal" id="subscriptions-modal">
+    <div class="modal-content" style="max-width:460px;">
+        <h2 style="color:var(--primary);margin-bottom:12px;"><i class="fas fa-credit-card"></i> מנויים וחיובים</h2>
+        <div style="padding:14px 16px;border:1px solid var(--border);border-radius:12px;background:var(--surface2);margin-bottom:14px;">
+            <div style="display:flex;align-items:center;gap:8px;color:#facc15;font-weight:700;margin-bottom:6px;">
+                <i class="fas fa-bullhorn"></i>
+                <span>באנר עדכון</span>
+            </div>
+            <p style="color:var(--text-muted);font-size:13px;line-height:1.6;">
+                מודול מנויים וחיובים יהיה זמין בקרוב. בינתיים האזור נשאר ריק לפי הבקשה.
+            </p>
+        </div>
+        <button onclick="closeSubscriptionsModal()" class="btn btn-primary">סגור</button>
     </div>
 </div>
 
@@ -1432,7 +1457,7 @@ async function callAIWorker(route, payload, signal = undefined) {
             { getFirestore, collection, doc, setDoc, getDoc, addDoc, serverTimestamp },
             { getAuth, onAuthStateChanged,
               signInWithEmailAndPassword, createUserWithEmailAndPassword,
-              updateProfile, signOut, deleteUser, GoogleAuthProvider, signInWithPopup }
+              updateProfile, sendPasswordResetEmail, signOut, deleteUser, GoogleAuthProvider, signInWithPopup }
             ,
             { getStorage, ref: storageRef, uploadBytes, getDownloadURL }
         ] = await Promise.all([
@@ -1485,6 +1510,7 @@ async function callAIWorker(route, payload, signal = undefined) {
             signInWithEmailAndPassword,
             createUserWithEmailAndPassword,
             updateProfile,
+            sendPasswordResetEmail,
             signOut,
             deleteUser,
             signInWithPopup,
@@ -1534,6 +1560,7 @@ function updateAuthUI(user) {
     const headerAv    = document.getElementById('header-avatar');
     const headerUN    = document.getElementById('header-username');
     const profileAvatarPreview = document.getElementById('profile-avatar-preview');
+    const profileNameInput = document.getElementById('profile-name-input');
 
     if (user) {
         dot.className = 'ok';
@@ -1553,6 +1580,7 @@ function updateAuthUI(user) {
         // Menu
         menuName.textContent  = name;
         menuEmail.textContent = user.email;
+        if (profileNameInput) profileNameInput.value = name;
         menuAuthText.textContent = 'עריכת פרופיל';
         menuAuthIcon.className = 'fas fa-user-gear';
         menuAuthIcon.style.color = '#22c55e';
@@ -1579,6 +1607,7 @@ function updateAuthUI(user) {
 
         menuName.textContent  = 'אורח';
         menuEmail.textContent = 'לחץ להתחבר / להירשם';
+        if (profileNameInput) profileNameInput.value = '';
         menuAuthText.textContent = 'התחבר / הירשם';
         menuAuthIcon.className = 'fas fa-right-to-bracket';
         menuAuthIcon.style.color = 'var(--primary)';
@@ -1731,6 +1760,7 @@ function openProfileModal() {
         profileAvatarPreview.innerHTML = '';
         profileAvatarPreview.textContent = initial;
     }
+    document.getElementById('profile-name-input').value = name;
     document.getElementById('profile-image-input').value = '';
     document.getElementById('profile-modal').style.display = 'flex';
     toggleSidebarMenu();
@@ -1762,6 +1792,55 @@ async function uploadProfileImage() {
     } catch (error) {
         showToast(`שגיאה בהעלאת תמונה: ${error?.message || 'נכשל'}`, 'triangle-exclamation', '#ff5555');
     }
+}
+
+async function saveProfileChanges() {
+    if (!_auth || !currentUser) return;
+    const nameInput = document.getElementById('profile-name-input');
+    const displayName = String(nameInput?.value || '').trim();
+    if (!displayName) {
+        showToast('יש להזין שם תצוגה', 'triangle-exclamation', '#ff9800');
+        return;
+    }
+    try {
+        await _auth._helpers.updateProfile(currentUser, { displayName });
+        updateAuthUI(currentUser);
+        showToast('השם נשמר בהצלחה', 'floppy-disk', '#22c55e');
+    } catch (error) {
+        showToast(`שגיאה בשמירת שם: ${error?.message || 'נכשל'}`, 'triangle-exclamation', '#ff5555');
+    }
+}
+
+async function resetPasswordAndSignOut() {
+    if (!_auth || !currentUser) {
+        showAuthModal();
+        return;
+    }
+    const email = String(currentUser.email || '').trim();
+    if (!email) {
+        showToast('לא נמצא אימייל לחשבון', 'triangle-exclamation', '#ff5555');
+        return;
+    }
+    if (!confirm(`לשלוח מייל איפוס סיסמה ל־${email} ולהתנתק?`)) return;
+    try {
+        await _auth._helpers.sendPasswordResetEmail(_auth, email);
+        await _auth._helpers.signOut(_auth);
+        closeProfileModal();
+        document.getElementById('sidebar-menu').classList.remove('open');
+        showToast('נשלח מייל איפוס והתבצעה התנתקות', 'key', '#22c55e');
+    } catch (error) {
+        showToast(`שגיאה באיפוס סיסמה: ${error?.message || 'נכשל'}`, 'triangle-exclamation', '#ff5555');
+    }
+}
+
+function openSubscriptionsModal() {
+    document.getElementById('subscriptions-modal').style.display = 'flex';
+    const menu = document.getElementById('sidebar-menu');
+    if (menu.classList.contains('open')) menu.classList.remove('open');
+}
+
+function closeSubscriptionsModal() {
+    document.getElementById('subscriptions-modal').style.display = 'none';
 }
 
 function openDeleteAccountModal() {
@@ -2982,6 +3061,12 @@ function openSketchModal() {
     document.getElementById('sketch-modal').style.display = 'flex';
 }
 
+function openSketchFromMenu() {
+    const menu = document.getElementById('sidebar-menu');
+    if (menu.classList.contains('open')) menu.classList.remove('open');
+    openSketchModal();
+}
+
 function togglePersonalSketchForm() {
     const form = document.getElementById('personal-sketch-form');
     if (!form) return;
@@ -3190,6 +3275,7 @@ function init() {
             document.getElementById('sidebar-menu').classList.remove('open');
             document.getElementById('files-sidebar').classList.remove('open');
             document.getElementById('profile-modal').style.display = 'none';
+            document.getElementById('subscriptions-modal').style.display = 'none';
             document.getElementById('delete-account-modal').style.display = 'none';
             isFilesSidebarOpen = false;
             // Don't close auth modal on Escape — user must press "לא עכשיו"
