@@ -900,6 +900,7 @@
 ═══════════════════════════════════════════════ */
 let files = [], projects = [];
 let currentFileIndex = -1;
+let openTabFileIds = [];
 let isPreviewOpen = false, isAIPanelOpen = false, isFilesSidebarOpen = false;
 let currentPreviewDevice = 'desktop';
 let pendingAIChange = null;
@@ -1651,6 +1652,7 @@ function saveToStorage() {
         localStorage.setItem('codesphere_projects_v1', JSON.stringify(projects));
         localStorage.setItem('codesphere_personal_sketches_v1', JSON.stringify(personalSketches));
         localStorage.setItem('codesphere_ai_conversations_v1', JSON.stringify(aiConversationsByContext));
+        localStorage.setItem('codesphere_open_tabs_v1', JSON.stringify(openTabFileIds));
     } catch(e) {}
     if (!isApplyingRemoteWorkspace) scheduleCloudAutoSave();
 }
@@ -1696,6 +1698,7 @@ function applyWorkspaceData(workspaceData) {
         }
 
         currentFileIndex = files.length > 0 ? 0 : -1;
+        openTabFileIds = files.length > 0 ? [files[0].id] : [];
         if (files.length > 0) {
             editor.value = files[0].content;
             setEditorLanguageByFilename(files[0].name);
@@ -2175,6 +2178,29 @@ function toggleFilesSidebar() {
     document.getElementById('files-sidebar').classList.toggle('open', isFilesSidebarOpen);
 }
 
+function getFileIndexById(fileId) {
+    return files.findIndex(file => file.id === fileId);
+}
+
+function getOpenTabFileIndices() {
+    return openTabFileIds
+        .map(fileId => getFileIndexById(fileId))
+        .filter(index => index >= 0);
+}
+
+function ensureActiveFileTab() {
+    if (currentFileIndex < 0 || currentFileIndex >= files.length) return;
+    const activeFileId = files[currentFileIndex]?.id;
+    if (activeFileId == null) return;
+    if (!openTabFileIds.includes(activeFileId)) openTabFileIds.push(activeFileId);
+}
+
+function reconcileOpenTabs() {
+    const validIds = new Set(files.map(file => file.id));
+    openTabFileIds = openTabFileIds.filter(fileId => validIds.has(fileId));
+    ensureActiveFileTab();
+}
+
 function renderProjectsAndFiles() {
     const searchTerm    = (document.getElementById('search-input').value || '').toLowerCase();
     const projectsList  = document.getElementById('projects-list');
@@ -2196,6 +2222,8 @@ function renderProjectsAndFiles() {
                             <i class="fas fa-file-code" style="font-size:11px;"></i>
                             <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${f.name}</span>
                             <div class="file-actions">
+                                <button onclick="event.stopPropagation();renameFile(${f.id})" class="file-action-btn" title="שנה שם">
+                                    <i class="fas fa-pencil-alt"></i></button>
                                 <button onclick="event.stopPropagation();removeFileFromProject(${f.id},${project.id})" class="file-action-btn" title="הסר">
                                     <i class="fas fa-times"></i></button>
                             </div>
@@ -2229,6 +2257,8 @@ function renderProjectsAndFiles() {
                 <i class="fas fa-file-code" style="font-size:11px;"></i>
                 <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${f.name}</span>
                 <div class="file-actions">
+                    <button onclick="event.stopPropagation();renameFile(${f.id})" class="file-action-btn" title="שנה שם">
+                        <i class="fas fa-pencil-alt"></i></button>
                     <button onclick="event.stopPropagation();showAddToProject(${f.id})" class="file-action-btn" title="הוסף לפרויקט">
                         <i class="fas fa-folder-plus"></i></button>
                 </div>
@@ -2237,12 +2267,17 @@ function renderProjectsAndFiles() {
 }
 
 function renderTabs() {
-    tabsContainer.innerHTML = files.map((f,i) => `
-        <div class="tab ${i===currentFileIndex?'active':''}" onclick="openFile(${i})">
+    reconcileOpenTabs();
+    const tabIndices = getOpenTabFileIndices();
+    tabsContainer.innerHTML = tabIndices.map((fileIndex, tabIndex) => {
+        const f = files[fileIndex];
+        return `
+        <div class="tab ${fileIndex===currentFileIndex?'active':''}" onclick="openFile(${fileIndex})">
             <i class="fas fa-file-code" style="font-size:10px;"></i>
             <span>${f.name}</span>
-            <span class="tab-close" onclick="event.stopImmediatePropagation();closeTab(${i});">✕</span>
-        </div>`).join('') + `<button class="tab-add-btn" onclick="newFile()" title="כרטיסייה חדשה"><i class="fas fa-plus"></i></button>`;
+            <span class="tab-close" onclick="event.stopImmediatePropagation();closeTab(${tabIndex});">✕</span>
+        </div>`;
+    }).join('') + `<button class="tab-add-btn" onclick="newFile()" title="כרטיסייה חדשה"><i class="fas fa-plus"></i></button>`;
 }
 
 /* ═══════════════════════════════════════════════
@@ -2254,6 +2289,7 @@ function openFile(i) {
         persistAIConversation();
     }
     currentFileIndex = i;
+    ensureActiveFileTab();
     editor.value = files[i].content || '';
     setEditorLanguageByFilename(files[i].name);
     document.getElementById('current-file-name').textContent = files[i].name;
@@ -2262,17 +2298,35 @@ function openFile(i) {
     ensureConversationLoadedForCurrentFile();
 }
 
-function closeTab(i) {
-    if (files.length === 1) {
-        files = []; currentFileIndex = -1; editor.value = ''; setEditorLanguageByFilename('');
-        document.getElementById('current-file-name').textContent = 'אין קבצים';
-    } else {
-        if (i === currentFileIndex) currentFileIndex = i > 0 ? i-1 : 0;
-        else if (i < currentFileIndex) currentFileIndex--;
-        files.splice(i, 1);
+function closeTab(tabIndex) {
+    reconcileOpenTabs();
+    if (tabIndex < 0 || tabIndex >= openTabFileIds.length) return;
+    const closingFileId = openTabFileIds[tabIndex];
+    const closingFileIndex = getFileIndexById(closingFileId);
+    const wasActive = closingFileIndex === currentFileIndex;
+
+    if (wasActive && currentFileIndex >= 0 && currentFileIndex < files.length) {
+        persistAIConversation();
     }
-    renderProjectsAndFiles(); renderTabs();
-    if (files.length > 0 && currentFileIndex >= 0) openFile(currentFileIndex);
+
+    openTabFileIds.splice(tabIndex, 1);
+
+    if (openTabFileIds.length === 0) {
+        currentFileIndex = -1;
+        editor.value = '';
+        setEditorLanguageByFilename('');
+        document.getElementById('current-file-name').textContent = 'אין קובץ פתוח';
+        aiConversationHistory = [];
+        activeAIContextKey = 'global';
+        renderAIConversation();
+    } else if (wasActive) {
+        const nextTabIndex = Math.min(tabIndex, openTabFileIds.length - 1);
+        const nextFileIndex = getFileIndexById(openTabFileIds[nextTabIndex]);
+        if (nextFileIndex >= 0) openFile(nextFileIndex);
+    }
+
+    renderProjectsAndFiles();
+    renderTabs();
     saveToStorage();
     recalculateSearchResults();
 }
@@ -2312,11 +2366,11 @@ function triggerFileUpload() {
     input.click();
 }
 
-function quickSave() {
+async function quickSave() {
     if (currentFileIndex < 0) { showToast("אין קובץ פעיל", "exclamation-circle", "#ff9800"); return; }
     files[currentFileIndex].content = editor.value;
     saveToStorage();
-    showToast("נשמר", "check-circle", "#22c55e");
+    await saveToFirebase();
 }
 
 async function saveMainAction() {
@@ -2379,6 +2433,22 @@ function renameProject(id) {
     const name = prompt("שם חדש:", p.name);
     if (name?.trim()) { p.name = name.trim(); renderProjectsAndFiles(); saveToStorage(); showToast("שם עודכן"); }
 }
+function renameFile(fileId) {
+    const fileIndex = getFileIndexById(fileId);
+    if (fileIndex < 0) return;
+    const currentName = files[fileIndex].name || 'untitled.txt';
+    const name = prompt("שם קובץ חדש:", currentName);
+    if (!name?.trim()) return;
+    files[fileIndex].name = name.trim();
+    if (fileIndex === currentFileIndex) {
+        document.getElementById('current-file-name').textContent = files[fileIndex].name;
+    }
+    renderProjectsAndFiles();
+    renderTabs();
+    saveToStorage();
+    showToast("שם הקובץ עודכן", "check-circle", "#22c55e");
+}
+
 function deleteProject(id) {
     if (!confirm("למחוק את הפרויקט?")) return;
     projects = projects.filter(p => p.id !== id);
@@ -2630,7 +2700,7 @@ function createFileFromSketch(type) {
 
 function clearAllFiles() {
     if (!confirm("למחוק את כל הקבצים?")) return;
-    files=[]; currentFileIndex=-1; editor.value='';
+    files=[]; openTabFileIds=[]; currentFileIndex=-1; editor.value='';
     document.getElementById('current-file-name').textContent='אין קבצים';
     renderProjectsAndFiles(); renderTabs(); saveToStorage(); showToast("כל הקבצים נמחקו");
 }
@@ -2672,18 +2742,26 @@ function init() {
         const sp = localStorage.getItem('codesphere_projects_v1');
         const ssk = localStorage.getItem('codesphere_personal_sketches_v1');
         const sach = localStorage.getItem('codesphere_ai_conversations_v1');
+        const sot = localStorage.getItem('codesphere_open_tabs_v1');
         if (sf) files    = JSON.parse(sf);
         if (sp) projects = JSON.parse(sp);
         if (ssk) personalSketches = JSON.parse(ssk);
         if (sach) aiConversationsByContext = JSON.parse(sach);
+        if (sot) openTabFileIds = JSON.parse(sot);
     } catch(e) {}
 
     if (files.length === 0) {
         files = [{ id:1, name:'index.html', content:'' }];
     }
 
-    currentFileIndex = 0;
-    document.getElementById('current-file-name').textContent = files[0].name;
+    reconcileOpenTabs();
+    if (!openTabFileIds.length && files[0]) openTabFileIds = [files[0].id];
+    currentFileIndex = getFileIndexById(openTabFileIds[0]);
+    if (currentFileIndex < 0 && files[0]) {
+        currentFileIndex = 0;
+        openTabFileIds = [files[0].id];
+    }
+    document.getElementById('current-file-name').textContent = files[currentFileIndex]?.name || 'אין קובץ פתוח';
     renderProjectsAndFiles(); renderTabs();
     ensureConversationLoadedForCurrentFile();
     codeSearchInput.addEventListener('keydown', e => {
@@ -2736,8 +2814,13 @@ function init() {
     }, 3000);
 
     initMonacoEditor().then(() => {
-        editor.value = files[0].content;
-        setEditorLanguageByFilename(files[0].name);
+        if (currentFileIndex >= 0 && currentFileIndex < files.length) {
+            editor.value = files[currentFileIndex].content;
+            setEditorLanguageByFilename(files[currentFileIndex].name);
+        } else {
+            editor.value = '';
+            setEditorLanguageByFilename('');
+        }
         updateStats();
         editor.addEventListener('input', () => {
             if (currentFileIndex >= 0) files[currentFileIndex].content = editor.value;
