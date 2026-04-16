@@ -365,8 +365,8 @@
             border: none;
         }
         .ai-loading-message img {
-            width: 140px;
-            height: 140px;
+            width: 88px;
+            height: 88px;
             object-fit: contain;
             filter: drop-shadow(0 12px 28px rgba(0,0,0,0.35));
         }
@@ -2697,10 +2697,9 @@ function addAIMessage(type, text, autoScroll = true) {
 }
 
 function setAIThinkingState(isThinking) {
-    const nextIcon = isThinking ? AI_THINKING_ICON : AI_IDLE_ICON;
     [aiFabIcon, aiHeaderIcon].forEach(icon => {
         if (!icon) return;
-        icon.src = nextIcon;
+        icon.src = AI_IDLE_ICON;
     });
 }
 
@@ -2733,31 +2732,18 @@ async function handleAIRequest() {
             files[activeFile.index].content = activeFile.content;
         }
 
-        const activeProject = activeFile ? getProjectForFile(files[activeFile.index]?.id) : null;
-        const relevantFiles = activeProject
-            ? files.filter(f => activeProject.fileIds.includes(f.id))
-            : files;
-        const hasFiles = Array.isArray(relevantFiles) && relevantFiles.length > 0;
-        const projectBundle = activeProject
-            ? [{
-                name: `${activeProject.name}.project.txt`,
-                content: relevantFiles.map(f => `=== ${f.name} ===\n${f.content || ''}`).join('\n\n')
-            }]
-            : [];
+        const hasFiles = Boolean(activeFile?.name);
         const route = hasFiles ? '/api/chat' : '/api/generate';
         const payload = hasFiles
             ? {
                 message: prompt,
-                files: [
-                    ...relevantFiles.map(f => ({ name: f.name, content: f.content })),
-                    ...projectBundle
-                ],
+                files: [{ name: activeFile.name, content: activeFile.content || '' }],
                 history: aiConversationHistory.slice(-40),
                 activeFileName: activeFile?.name || null,
                 projectContext: {
-                    projectNames: projects.map(p => p.name),
-                    fileNames: relevantFiles.map(f => f.name),
-                    activeProjectName: activeProject?.name || null
+                    projectNames: [],
+                    fileNames: activeFile?.name ? [activeFile.name] : [],
+                    activeProjectName: null
                 }
             }
             : {
