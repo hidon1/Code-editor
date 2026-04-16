@@ -208,20 +208,29 @@
         }
         .status-bar-sep { width: 1px; height: 14px; background: var(--border); }
         .ai-fab {
-            min-width: 104px; height: 38px; border-radius: 10px;
-            border: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+            width: 38px; height: 38px; border-radius: 9999px;
+            border: none; display: inline-flex; align-items: center; justify-content: center;
             background: linear-gradient(135deg, #10b981, #059669);
             color: #fff; cursor: pointer; font-size: 13px; font-weight: 700;
             box-shadow: 0 4px 16px rgba(16,185,129,0.45); transition: all 0.2s;
-            padding: 0 16px;
+            padding: 0;
+            overflow: hidden;
+            flex-shrink: 0;
         }
         .ai-fab-icon {
-            width: 16px;
-            height: 16px;
-            object-fit: contain;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
             flex-shrink: 0;
         }
         .ai-fab:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(16,185,129,0.52); }
+        .ai-header-icon {
+            width: 26px;
+            height: 26px;
+            border-radius: 50%;
+            object-fit: cover;
+            flex-shrink: 0;
+        }
 
         /* FILES SIDEBAR */
         .files-sidebar {
@@ -549,7 +558,7 @@
     <div class="nav-actions">
         <button onclick="triggerFileUpload()" class="btn" title="העלה"><i class="fas fa-upload"></i></button>
         <button class="ai-fab" onclick="toggleAIPanel()" title="AI בונה אתרים">
-            <img src="סמל קבוע AI.svg" alt="AI" class="ai-fab-icon"><span>AI</span>
+            <img src="סמל קבוע AI.svg" alt="AI" class="ai-fab-icon">
         </button>
         <button onclick="openSketchModal()" class="btn" title="סקיצות ותבניות">
             <i class="fas fa-lightbulb"></i><span>סקיצה</span>
@@ -673,7 +682,7 @@
 <!-- ═══ AI PANEL (RIGHT) ═══ -->
 <div class="ai-panel" id="ai-panel">
     <div class="ai-header">
-        <i class="fas fa-robot" style="color:#10b981;"></i>
+        <img src="סמל קבוע AI.svg" alt="AI" class="ai-header-icon">
         <span style="font-weight:600;">AI בונה אתרים</span>
         <div onclick="toggleAIPanel()" style="margin-right:auto;cursor:pointer;font-size:22px;color:#888;">✕</div>
     </div>
