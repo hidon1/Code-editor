@@ -357,18 +357,25 @@
         .ai-bot-header img { width: 16px; height: 16px; object-fit: contain; }
         .ai-answer-title { font-weight: 700; margin-bottom: 4px; color: var(--text); }
         .ai-loading-message {
-            min-height: 170px;
+            min-height: 200px;
             display: flex;
             align-items: center;
             justify-content: center;
             background: transparent;
             border: none;
+            align-self: center;
+            width: 100%;
         }
         .ai-loading-message img {
-            width: 88px;
-            height: 88px;
+            width: 120px;
+            height: 120px;
             object-fit: contain;
             filter: drop-shadow(0 12px 28px rgba(0,0,0,0.35));
+            animation: ai-pulse 1.6s ease-in-out infinite;
+        }
+        @keyframes ai-pulse {
+            0%, 100% { transform: scale(1);   opacity: 1;    }
+            50%       { transform: scale(1.07); opacity: 0.85; }
         }
         .ai-empty-prompts {
             border: 1px dashed var(--border); border-radius: 12px; padding: 12px;
@@ -1069,6 +1076,7 @@ let pendingProfileImageFile = null;
 let workspaceUnsubscribe = null;
 let cloudSaveTimer = null;
 let isApplyingRemoteWorkspace = false;
+let isWorkspaceSynced = false; // True only after cloud data has been loaded at least once
 let lastWorkspaceSignature = '';
 let _shareUrl = '';
 let addToProjectState = null;
@@ -1401,6 +1409,7 @@ function ensureConversationLoadedForCurrentFile() {
     aiConversationHistory = Array.isArray(aiConversationsByContext[activeAIContextKey])
         ? [...aiConversationsByContext[activeAIContextKey]]
         : [];
+    // isCurrentContextProcessing() checks per-file, so correctly shows thinking only for this file
     setAIThinkingState(isCurrentContextProcessing());
     renderAIConversation();
 }
@@ -1541,7 +1550,7 @@ async function callAIWorker(route, payload, signal = undefined) {
 
         const [
             { initializeApp },
-            { getFirestore, collection, doc, setDoc, getDoc, addDoc, serverTimestamp },
+            { getFirestore, collection, doc, setDoc, getDoc, addDoc, onSnapshot, serverTimestamp },
             { getAuth, onAuthStateChanged,
               signInWithEmailAndPassword, createUserWithEmailAndPassword,
               updateProfile, sendPasswordResetEmail, signOut, deleteUser, GoogleAuthProvider, signInWithPopup }
@@ -1588,6 +1597,12 @@ async function callAIWorker(route, payload, signal = undefined) {
             async loadUserProfile(uid) {
                 const snap = await getDoc(doc(db, 'codesphere_users', uid));
                 return snap.exists() ? snap.data() : null;
+            },
+            /* Real-time listener for the user's workspace */
+            watchWorkspace(uid, callback) {
+                return onSnapshot(doc(db, 'codesphere_workspaces', uid), (snap) => {
+                    if (snap.exists()) callback(snap.data());
+                });
             },
             /* Create new share OR update existing one — returns the permanent cloudId */
             async upsertShare(cloudId, shareData) {
@@ -1657,6 +1672,7 @@ async function callAIWorker(route, payload, signal = undefined) {
             } else if (workspaceUnsubscribe) {
                 workspaceUnsubscribe();
                 workspaceUnsubscribe = null;
+                isWorkspaceSynced = false; // Reset so next login loads before any save
             }
         });
 
@@ -2108,6 +2124,7 @@ function replaceAllMatches() {
 
 function saveToStorage() {
     // Workspace is cloud-only by request: keep data in memory and cloud, not browser localStorage.
+    // Skip auto-save when applying remote data to avoid Firebase write loops
     if (!isApplyingRemoteWorkspace) scheduleCloudAutoSave();
 }
 
@@ -2145,7 +2162,7 @@ function clearLegacyLocalWorkspaceCache() {
 }
 
 function scheduleCloudAutoSave() {
-    if (!currentUser || !_fb) return;
+    if (!currentUser || !_fb || !isWorkspaceSynced) return;
     clearTimeout(cloudSaveTimer);
     cloudSaveTimer = setTimeout(() => {
         saveToFirebase({ silent: true, auto: true });
@@ -2244,15 +2261,28 @@ async function startWorkspaceSync(uid) {
         workspaceUnsubscribe = null;
     }
 
+    // Load workspace once from Firebase — never write before this completes
     const cloudWorkspace = await _fb.loadWorkspace(uid);
     if (cloudWorkspace) {
         applyWorkspaceData(cloudWorkspace);
         showToast("הקבצים נטענו אוטומטית מהענן", "cloud", "#22c55e");
     } else {
+        // First-ever save for this account — current state is empty by definition
         await _fb.saveWorkspace(uid, getCurrentWorkspaceSnapshot());
         lastWorkspaceSignature = getWorkspaceSignature(getCurrentWorkspaceSnapshot());
         showToast("הועלה גיבוי ראשון לענן", "cloud-arrow-up", "#22c55e");
     }
+
+    // Allow auto-saves only AFTER the first cloud load is done
+    isWorkspaceSynced = true;
+
+    // Real-time listener: update UI whenever Firebase changes (e.g. other tab/device)
+    workspaceUnsubscribe = _fb.watchWorkspace(uid, (data) => {
+        // Only apply if we are not the one who triggered this update
+        if (!isApplyingRemoteWorkspace) {
+            applyWorkspaceData(data);
+        }
+    });
 }
 
 function toggleTheme() {
@@ -2768,6 +2798,10 @@ function syncPreviewFrameSize() {
 function toggleAIPanel() {
     isAIPanelOpen = !isAIPanelOpen;
     document.getElementById('ai-panel').classList.toggle('active', isAIPanelOpen);
+    if (isAIPanelOpen) {
+        // Reload the correct file's conversation (history + thinking state)
+        ensureConversationLoadedForCurrentFile();
+    }
 }
 
 function addAIMessage(type, text, autoScroll = true) {
@@ -2788,9 +2822,10 @@ function addAIMessage(type, text, autoScroll = true) {
 }
 
 function setAIThinkingState(isThinking) {
-    [aiFabIcon, aiHeaderIcon].forEach(icon => {
-        if (!icon) return;
-        icon.src = AI_IDLE_ICON;
+    const icon = isThinking ? AI_THINKING_ICON : AI_IDLE_ICON;
+    [aiFabIcon, aiHeaderIcon].forEach(el => {
+        if (!el) return;
+        el.src = icon;
     });
 }
 
@@ -2804,14 +2839,12 @@ async function handleAIRequest() {
     if (aiStopBtn) aiStopBtn.classList.add('show');
     setAIThinkingState(true);
     setCurrentAIRequestState(true);
-    saveToStorage();
     input.disabled = true;
     currentAIRequestController = new AbortController();
 
     addAIMessage('user', prompt);
     aiConversationHistory.push({ role: 'user', content: prompt });
     persistAIConversation();
-    saveToStorage();
     input.value = '';
 
     const loading = createAILoadingMessage();
@@ -2850,7 +2883,6 @@ async function handleAIRequest() {
 
         aiConversationHistory.push({ role: 'assistant', content: description });
         persistAIConversation();
-        saveToStorage();
 
         loading.classList.remove('ai-loading-message');
         loading.innerHTML = `
@@ -3248,13 +3280,19 @@ function deleteFile(fileId) {
     updateStats();
     recalculateSearchResults();
     saveToStorage();
+    // Save deletion to Firebase immediately (not just delayed auto-save)
+    if (currentUser && _fb) saveToFirebase({ silent: true });
     showToast(`הקובץ "${fileName}" נמחק`, "trash", "#ff5555");
 }
 
 function deleteProject(id) {
     if (!confirm("למחוק את הפרויקט?")) return;
     projects = projects.filter(p => p.id !== id);
-    renderProjectsAndFiles(); saveToStorage(); showToast("הפרויקט נמחק");
+    renderProjectsAndFiles();
+    saveToStorage();
+    // Save deletion to Firebase immediately
+    if (currentUser && _fb) saveToFirebase({ silent: true });
+    showToast("הפרויקט נמחק");
 }
 function removeFileFromProject(fileId, projectId) {
     const p = projects.find(x => x.id === projectId);
