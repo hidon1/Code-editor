@@ -1107,7 +1107,7 @@ let _auth = null;      // Firebase auth instance
 let _storage = null;   // Firebase storage instance
 let currentUser = null;
 let pendingProfileImageFile = null;
-let workspaceUnsubscribe = null;
+// workspaceUnsubscribe removed — real-time listener replaced by one-time load on login
 let cloudSaveTimer = null;
 let isApplyingRemoteWorkspace = false;
 let isWorkspaceSynced = false; // True only after cloud data has been loaded at least once
@@ -1596,7 +1596,7 @@ async function callAIWorker(route, payload, signal = undefined) {
 
         const [
             { initializeApp },
-            { getFirestore, collection, doc, setDoc, getDoc, addDoc, onSnapshot, serverTimestamp },
+            { getFirestore, collection, doc, setDoc, getDoc, addDoc, serverTimestamp },
             { getAuth, onAuthStateChanged,
               signInWithEmailAndPassword, createUserWithEmailAndPassword,
               updateProfile, sendPasswordResetEmail, signOut, deleteUser, GoogleAuthProvider, signInWithPopup }
@@ -1643,12 +1643,6 @@ async function callAIWorker(route, payload, signal = undefined) {
             async loadUserProfile(uid) {
                 const snap = await getDoc(doc(db, 'codesphere_users', uid));
                 return snap.exists() ? snap.data() : null;
-            },
-            /* Real-time listener for the user's workspace */
-            watchWorkspace(uid, callback) {
-                return onSnapshot(doc(db, 'codesphere_workspaces', uid), (snap) => {
-                    if (snap.exists()) callback(snap.data());
-                });
             },
             /* Create new share OR update existing one — returns the permanent cloudId */
             async upsertShare(cloudId, shareData) {
@@ -1715,9 +1709,7 @@ async function callAIWorker(route, payload, signal = undefined) {
                     console.warn('Workspace sync failed:', syncError?.message || syncError);
                     showToast("שגיאה בסנכרון הענן", "triangle-exclamation", "#ff5555");
                 }
-            } else if (workspaceUnsubscribe) {
-                workspaceUnsubscribe();
-                workspaceUnsubscribe = null;
+            } else {
                 isWorkspaceSynced = false; // Reset so next login loads before any save
             }
         });
@@ -2308,11 +2300,6 @@ function applyWorkspaceData(workspaceData) {
 async function startWorkspaceSync(uid) {
     if (!_fb) return;
 
-    if (workspaceUnsubscribe) {
-        workspaceUnsubscribe();
-        workspaceUnsubscribe = null;
-    }
-
     // Load workspace once from Firebase — never write before this completes
     const cloudWorkspace = await _fb.loadWorkspace(uid);
     if (cloudWorkspace) {
@@ -2327,16 +2314,6 @@ async function startWorkspaceSync(uid) {
 
     // Allow auto-saves only AFTER the first cloud load is done
     isWorkspaceSynced = true;
-
-    // Real-time listener: update UI whenever Firebase changes (e.g. other tab/device)
-    workspaceUnsubscribe = _fb.watchWorkspace(uid, (data) => {
-        if (isApplyingRemoteWorkspace) return;
-        // Only apply remote data if the user has no unsaved local changes.
-        // If local state differs from last sync, the user is mid-edit — skip.
-        const localSig = getWorkspaceSignature(getCurrentWorkspaceSnapshot());
-        if (localSig !== lastWorkspaceSignature) return;
-        applyWorkspaceData(data);
-    });
 }
 
 function toggleTheme() {
@@ -3086,9 +3063,9 @@ function ensureActiveFileTab() {
 }
 
 function reconcileOpenTabs() {
+    // Only remove stale tab IDs — never force-open any tab automatically
     const validIds = new Set(files.map(file => file.id));
     openTabFileIds = openTabFileIds.filter(fileId => validIds.has(fileId));
-    ensureActiveFileTab();
 }
 
 function renderProjectsAndFiles() {
@@ -3190,6 +3167,7 @@ function openFile(i) {
     renderProjectsAndFiles(); renderTabs(); livePreview(); updateStats();
     recalculateSearchResults();
     ensureConversationLoadedForCurrentFile();
+    saveToStorage(); // Save active tab so refresh restores exact state
 }
 
 async function closeTab(tabIndex) {
@@ -3393,30 +3371,44 @@ function deleteFile(fileId) {
         persistAIConversation();
     }
 
+    const wasActiveTab = (fileIndex === currentFileIndex) && openTabFileIds.includes(fileId);
+
     files = files.filter(f => f.id !== fileId);
     projects.forEach(project => {
         project.fileIds = project.fileIds.filter(id => id !== fileId);
     });
     openTabFileIds = openTabFileIds.filter(id => id !== fileId);
 
-    if (!files.length) {
+    if (wasActiveTab) {
+        // Switch only within already-open tabs
+        if (openTabFileIds.length > 0) {
+            const nextFileIndex = getFileIndexById(openTabFileIds[Math.max(0, openTabFileIds.length - 1)]);
+            if (nextFileIndex >= 0) {
+                currentFileIndex = nextFileIndex;
+                editor.value = files[currentFileIndex].content || '';
+                setEditorLanguageByFilename(files[currentFileIndex].name);
+                document.getElementById('current-file-name').textContent = files[currentFileIndex].name;
+                ensureConversationLoadedForCurrentFile();
+            }
+        } else {
+            // No open tabs left — show blank state
+            currentFileIndex = -1;
+            editor.value = '';
+            setEditorLanguageByFilename('');
+            document.getElementById('current-file-name').textContent = 'לחץ + לפתוח קובץ';
+            aiConversationHistory = [];
+            activeAIContextKey = 'global';
+            renderAIConversation();
+        }
+    } else if (currentFileIndex > fileIndex) {
+        // Adjust index since files array shifted
+        currentFileIndex--;
+    } else if (currentFileIndex === fileIndex) {
+        // Deleted a non-tab active file — clear editor
         currentFileIndex = -1;
         editor.value = '';
         setEditorLanguageByFilename('');
-        document.getElementById('current-file-name').textContent = 'אין קובץ פתוח';
-        aiConversationHistory = [];
-        activeAIContextKey = 'global';
-        renderAIConversation();
-    } else {
-        const nextIndex = Math.min(fileIndex, files.length - 1);
-        currentFileIndex = nextIndex;
-        if (currentFileIndex >= 0) {
-            ensureActiveFileTab();
-            editor.value = files[currentFileIndex].content || '';
-            setEditorLanguageByFilename(files[currentFileIndex].name);
-            document.getElementById('current-file-name').textContent = files[currentFileIndex].name;
-            ensureConversationLoadedForCurrentFile();
-        }
+        document.getElementById('current-file-name').textContent = 'לחץ + לפתוח קובץ';
     }
 
     renderProjectsAndFiles();
@@ -3710,7 +3702,9 @@ function setupDragAndDrop() {
         const reader = new FileReader();
         reader.onload = ev => {
             const f = { id: Date.now(), name: file.name, content: ev.target.result };
-            files.push(f); currentFileIndex = files.length-1;
+            files.push(f);
+            currentFileIndex = files.length - 1;
+            openTabFileIds.push(f.id); // Explicit tab open — user dragged the file
             editor.value = f.content;
             setEditorLanguageByFilename(f.name);
             document.getElementById('current-file-name').textContent = f.name;
@@ -3729,20 +3723,11 @@ function setupDragAndDrop() {
 ═══════════════════════════════════════════════ */
 function init() {
     clearLegacyLocalWorkspaceCache();
-
-    if (files.length === 0) {
-        files = [{ id:1, name:'index.html', content:'' }];
-    }
-    syncNextNewFileSequenceFromFiles();
-
-    reconcileOpenTabs();
-    if (!openTabFileIds.length && files[0]) openTabFileIds = [files[0].id];
-    currentFileIndex = getFileIndexById(openTabFileIds[0]);
-    if (currentFileIndex < 0 && files[0]) {
-        currentFileIndex = 0;
-        openTabFileIds = [files[0].id];
-    }
-    document.getElementById('current-file-name').textContent = files[currentFileIndex]?.name || 'אין קובץ פתוח';
+    // Start with no tabs and no active file — Firebase will load the real workspace
+    currentFileIndex = -1;
+    openTabFileIds = [];
+    editor.value = '';
+    document.getElementById('current-file-name').textContent = 'לחץ + לפתוח קובץ';
     renderProjectsAndFiles(); renderTabs();
     ensureConversationLoadedForCurrentFile();
     codeSearchInput.addEventListener('keydown', e => {
