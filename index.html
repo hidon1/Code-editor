@@ -6,106 +6,188 @@
     <title>CodeSphere - עורך קוד</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/js/all.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400;500;600;700;800&family=Assistant:wght@300;400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary: #00d4ff;
-            --primary-dim: rgba(0,212,255,0.15);
-            --accent: #7b5eff;
-            --bg: #07070f;
-            --surface: #0f0f1a;
-            --surface2: #16162a;
-            --surface3: #1e1e36;
-            --text: #e2e2ff;
-            --text-muted: #8080b0;
-            --border: #22223a;
-            --shadow-lg: 0 20px 60px rgba(0,0,0,0.7);
+            --primary: #22d3ee;
+            --primary-2: #06b6d4;
+            --primary-dim: rgba(34,211,238,0.16);
+            --accent: #a78bfa;
+            --accent-2: #7c3aed;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --bg: #05060f;
+            --bg-gradient: radial-gradient(1200px 600px at 85% -10%, rgba(124,58,237,0.14), transparent 60%),
+                           radial-gradient(900px 520px at -10% 110%, rgba(34,211,238,0.12), transparent 55%),
+                           linear-gradient(180deg, #05060f 0%, #080a18 100%);
+            --surface: #0d0f1c;
+            --surface2: #141729;
+            --surface3: #1c1f36;
+            --surface-glass: rgba(20,23,41,0.72);
+            --text: #e7ecff;
+            --text-muted: #8b93b8;
+            --border: rgba(255,255,255,0.08);
+            --border-strong: rgba(255,255,255,0.14);
+            --shadow-sm: 0 2px 8px rgba(0,0,0,0.35);
+            --shadow-md: 0 8px 24px rgba(0,0,0,0.4);
+            --shadow-lg: 0 24px 64px rgba(0,0,0,0.55);
+            --shadow-glow: 0 0 0 1px rgba(34,211,238,0.18), 0 8px 28px rgba(34,211,238,0.18);
             --radius: 12px;
             --radius-sm: 8px;
             --radius-lg: 18px;
+            --font-ui: 'Rubik', 'Assistant', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            --font-display: 'Space Grotesk', 'Rubik', sans-serif;
+            --font-mono: 'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace;
         }
         [data-theme="light"] {
-            --primary: #0055cc;
-            --primary-dim: rgba(0,85,204,0.1);
-            --accent: #6344e0;
-            --bg: #f0f2f8;
+            --primary: #0e7490;
+            --primary-2: #0891b2;
+            --primary-dim: rgba(14,116,144,0.12);
+            --accent: #7c3aed;
+            --accent-2: #6d28d9;
+            --bg: #f4f6fc;
+            --bg-gradient: radial-gradient(1200px 600px at 85% -10%, rgba(124,58,237,0.10), transparent 60%),
+                           radial-gradient(900px 520px at -10% 110%, rgba(14,165,233,0.10), transparent 55%),
+                           linear-gradient(180deg, #f4f6fc 0%, #eef1fb 100%);
             --surface: #ffffff;
-            --surface2: #eaecf6;
-            --surface3: #e0e3f0;
-            --text: #12122e;
-            --text-muted: #5050a0;
-            --border: #d0d4e8;
+            --surface2: #f1f3fb;
+            --surface3: #e6eaf5;
+            --surface-glass: rgba(255,255,255,0.82);
+            --text: #0f172a;
+            --text-muted: #475569;
+            --border: rgba(15,23,42,0.08);
+            --border-strong: rgba(15,23,42,0.14);
         }
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; text-rendering: optimizeLegibility; }
         body {
-            font-family: 'Heebo', sans-serif;
+            font-family: var(--font-ui);
             background: var(--bg);
+            background-image: var(--bg-gradient);
+            background-attachment: fixed;
             color: var(--text);
             height: 100vh;
             height: 100dvh;
             overflow: hidden;
+            letter-spacing: 0.01em;
         }
+        /* Custom scrollbar */
+        *::-webkit-scrollbar { width: 8px; height: 8px; }
+        *::-webkit-scrollbar-track { background: transparent; }
+        *::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 999px; }
+        *::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+        /* Match-flash animation for editor highlight */
+        @keyframes cs-flash {
+            0%   { background: rgba(251,191,36,0.75); box-shadow: 0 0 0 3px rgba(251,191,36,0.75); }
+            50%  { background: rgba(34,211,238,0.55); box-shadow: 0 0 0 2px rgba(34,211,238,0.6); }
+            100% { background: rgba(34,211,238,0.0);  box-shadow: 0 0 0 0 rgba(34,211,238,0); }
+        }
+        .cs-editor-flash { animation: cs-flash 1.8s ease-out; border-radius: 3px; }
+        /* Persistent highlight for the currently-selected preview match */
+        .cs-editor-current-match {
+            background: rgba(34,211,238,0.18) !important;
+            border-inline-start: 3px solid var(--primary) !important;
+            border-radius: 2px;
+        }
+        .cs-editor-current-match-inline {
+            background: rgba(34,211,238,0.28) !important;
+            border-radius: 3px;
+            box-shadow: 0 0 0 1px rgba(34,211,238,0.55);
+        }
+        .cs-editor-glyph-match {
+            background: linear-gradient(135deg, var(--primary), var(--primary-2)) !important;
+            width: 4px !important; margin-inline-start: 4px !important;
+            border-radius: 2px;
+        }
+        /* All matches — search-result style (subdued yellow) */
+        .cs-editor-all-match {
+            background: rgba(251, 191, 36, 0.10) !important;
+        }
+        .cs-editor-all-match-inline {
+            background: rgba(251, 191, 36, 0.22) !important;
+            border-radius: 2px;
+            box-shadow: 0 0 0 1px rgba(251,191,36,0.35);
+        }
+        .cs-editor-all-glyph {
+            background: #fbbf24 !important;
+            width: 3px !important; margin-inline-start: 6px !important;
+            opacity: 0.7; border-radius: 2px;
+        }
+        @keyframes cs-float { 0%,100%{ transform: translateY(0);} 50%{ transform: translateY(-3px);} }
+        @keyframes cs-spin { to { transform: rotate(360deg); } }
 
         /* HEADER */
         .header {
-            position: fixed; top: 0; left: 0; right: 0; height: 56px;
-            background: rgba(7,7,15,0.96); backdrop-filter: blur(24px) saturate(180%);
+            position: fixed; top: 0; left: 0; right: 0; height: 58px;
+            background: var(--surface-glass); backdrop-filter: blur(28px) saturate(180%);
+            -webkit-backdrop-filter: blur(28px) saturate(180%);
             border-bottom: 1px solid var(--border); z-index: 1000;
-            display: flex; align-items: center; padding: 0 14px;
+            display: flex; align-items: center; padding: 0 16px;
             justify-content: space-between; gap: 8px;
-            box-shadow: 0 1px 0 rgba(0,212,255,0.07), 0 4px 24px rgba(0,0,0,0.45);
+            box-shadow: 0 1px 0 rgba(255,255,255,0.03), 0 10px 30px rgba(0,0,0,0.3);
         }
-        [data-theme="light"] .header { background: rgba(255,255,255,0.96); box-shadow: 0 1px 0 rgba(0,85,204,0.09), 0 4px 24px rgba(0,0,0,0.1); }
-        .header-left { display: flex; align-items: center; gap: 10px; }
+        [data-theme="light"] .header { box-shadow: 0 1px 0 rgba(15,23,42,0.05), 0 10px 30px rgba(15,23,42,0.06); }
+        .header-left { display: flex; align-items: center; gap: 12px; }
         .logo {
-            display: flex; align-items: center; gap: 9px;
-            font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 700;
+            display: flex; align-items: center; gap: 10px;
+            font-family: var(--font-display); font-size: 19px; font-weight: 700;
+            letter-spacing: -0.02em;
             background: linear-gradient(100deg, var(--primary) 0%, var(--accent) 100%);
             -webkit-background-clip: text; -webkit-text-fill-color: transparent; white-space: nowrap;
         }
         .logo-icon {
-            width: 28px; height: 28px; border-radius: 8px;
+            width: 30px; height: 30px; border-radius: 9px;
             background: linear-gradient(135deg, var(--primary), var(--accent));
             display: flex; align-items: center; justify-content: center;
-            font-size: 13px; color: #000; flex-shrink: 0;
-            box-shadow: 0 4px 14px rgba(0,212,255,0.35);
+            font-size: 14px; color: #000; flex-shrink: 0;
+            box-shadow: 0 6px 18px rgba(34,211,238,0.35), inset 0 1px 0 rgba(255,255,255,0.3);
+            position: relative;
+        }
+        .logo-icon::after {
+            content:''; position:absolute; inset:-2px; border-radius: 11px;
+            background: linear-gradient(135deg, var(--primary), var(--accent));
+            filter: blur(14px); opacity: 0.4; z-index: -1;
         }
         .hamburger-btn {
-            width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
-            font-size: 15px; cursor: pointer; border-radius: 8px; transition: all 0.18s;
+            width: 38px; height: 38px; display: flex; align-items: center; justify-content: center;
+            font-size: 15px; cursor: pointer; border-radius: 10px; transition: all 0.2s;
             color: var(--text-muted); border: 1px solid transparent;
         }
-        .hamburger-btn:hover { background: var(--surface3); color: var(--text); border-color: var(--border); }
-        .nav-actions { display: flex; align-items: center; gap: 5px; flex-wrap: nowrap; }
+        .hamburger-btn:hover { background: var(--surface3); color: var(--text); border-color: var(--border-strong); transform: translateY(-1px); }
+        .nav-actions { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; }
 
         /* Buttons */
         .btn {
-            padding: 7px 13px; border-radius: 8px; font-weight: 600; cursor: pointer;
-            transition: all 0.18s cubic-bezier(0.34,1.56,0.64,1);
-            display: flex; align-items: center; gap: 6px;
-            font-size: 12.5px; border: 1px solid var(--border);
+            padding: 8px 14px; border-radius: 10px; font-weight: 600; cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.34,1.56,0.64,1);
+            display: inline-flex; align-items: center; gap: 7px;
+            font-size: 13px; border: 1px solid var(--border);
             background: var(--surface3); color: var(--text); white-space: nowrap;
-            font-family: 'Heebo', sans-serif;
+            font-family: var(--font-ui);
+            line-height: 1; letter-spacing: 0.01em;
         }
-        .btn:hover { background: var(--surface2); border-color: var(--primary); color: var(--primary); transform: translateY(-1px); box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
+        .btn:hover { background: var(--surface2); border-color: var(--primary); color: var(--primary); transform: translateY(-1px); box-shadow: var(--shadow-md); }
         .btn:active { transform: translateY(0); }
-        .btn-primary { background: linear-gradient(135deg, var(--primary), #00a8cc); color: #000; border-color: transparent; font-weight: 700; box-shadow: 0 4px 16px rgba(0,212,255,0.3); }
-        .btn-primary:hover { background: linear-gradient(135deg, #22ddff, var(--primary)); color: #000; border-color: transparent; box-shadow: 0 6px 22px rgba(0,212,255,0.5); }
-        .btn-danger { background: linear-gradient(135deg, #ff4444, #cc2222); color: white; border-color: transparent; }
-        .btn-danger:hover { color: white; border-color: transparent; box-shadow: 0 4px 16px rgba(255,68,68,0.4); }
-        .btn-save { background: linear-gradient(135deg, #22c55e, #16a34a); color: #000; border-color: transparent; font-weight: 700; box-shadow: 0 4px 14px rgba(34,197,94,0.28); }
-        .btn-save:hover { color: #000; border-color: transparent; box-shadow: 0 6px 20px rgba(34,197,94,0.5); }
-        .btn-cloud { background: linear-gradient(135deg, #f59e0b, #d97706); color: #000; border-color: transparent; font-weight: 700; box-shadow: 0 4px 14px rgba(245,158,11,0.28); }
-        .btn-cloud:hover { color: #000; border-color: transparent; box-shadow: 0 6px 20px rgba(245,158,11,0.5); }
-        .btn-share { background: linear-gradient(135deg, var(--accent), #5b3fd4); color: white; border-color: transparent; font-weight: 700; box-shadow: 0 4px 14px rgba(123,94,255,0.35); }
-        .btn-share:hover { color: white; border-color: transparent; box-shadow: 0 6px 20px rgba(123,94,255,0.55); }
+        .btn-primary { background: linear-gradient(135deg, var(--primary), var(--primary-2)); color: #001217; border-color: transparent; font-weight: 700; box-shadow: 0 6px 18px rgba(34,211,238,0.35), inset 0 1px 0 rgba(255,255,255,0.25); }
+        .btn-primary:hover { background: linear-gradient(135deg, #5eead4, var(--primary)); color: #001217; border-color: transparent; box-shadow: 0 10px 26px rgba(34,211,238,0.55), inset 0 1px 0 rgba(255,255,255,0.3); }
+        .btn-danger { background: linear-gradient(135deg, #ef4444, #b91c1c); color: white; border-color: transparent; }
+        .btn-danger:hover { color: white; border-color: transparent; box-shadow: 0 6px 18px rgba(239,68,68,0.45); }
+        .btn-save { background: linear-gradient(135deg, #34d399, #059669); color: #052e19; border-color: transparent; font-weight: 700; box-shadow: 0 6px 18px rgba(16,185,129,0.35), inset 0 1px 0 rgba(255,255,255,0.25); }
+        .btn-save:hover { color: #052e19; border-color: transparent; box-shadow: 0 10px 26px rgba(16,185,129,0.55); }
+        .btn-cloud { background: linear-gradient(135deg, #fbbf24, #d97706); color: #3a1f00; border-color: transparent; font-weight: 700; box-shadow: 0 6px 18px rgba(245,158,11,0.35), inset 0 1px 0 rgba(255,255,255,0.25); }
+        .btn-cloud:hover { color: #3a1f00; border-color: transparent; box-shadow: 0 10px 26px rgba(245,158,11,0.55); }
+        .btn-share { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: white; border-color: transparent; font-weight: 700; box-shadow: 0 6px 18px rgba(124,58,237,0.45), inset 0 1px 0 rgba(255,255,255,0.2); }
+        .btn-share:hover { color: white; border-color: transparent; box-shadow: 0 10px 26px rgba(124,58,237,0.65); }
         .btn-icon {
-            width: 34px; height: 34px; border-radius: 8px;
-            display: flex; align-items: center; justify-content: center;
+            width: 38px; height: 38px; border-radius: 10px;
+            display: inline-flex; align-items: center; justify-content: center;
             background: var(--surface3); cursor: pointer; border: 1px solid var(--border);
-            color: var(--text-muted); font-size: 13px; transition: all 0.18s;
+            color: var(--text-muted); font-size: 13px; transition: all 0.2s;
         }
-        .btn-icon:hover { background: var(--surface2); color: var(--primary); border-color: var(--primary); transform: translateY(-1px); }
+        .btn-icon:hover { background: var(--surface2); color: var(--primary); border-color: var(--primary); transform: translateY(-1px); box-shadow: var(--shadow-sm); }
 
         /* Cloud status dot */
         #cloud-status-dot {
@@ -149,11 +231,11 @@
 
         /* Tabs */
         .tabs {
-            display: flex; background: var(--surface);
-            border-bottom: 1px solid var(--border); min-height: 42px; overflow-x: auto; flex-shrink: 0;
+            display: flex; background: var(--surface-glass); backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border); min-height: 44px; overflow-x: auto; flex-shrink: 0;
             align-items: stretch;
             position: sticky; top: 0; z-index: 12;
-            box-shadow: inset 0 -1px 0 rgba(0, 212, 255, 0.12);
+            box-shadow: inset 0 -1px 0 rgba(34, 211, 238, 0.12);
         }
         .tabs::-webkit-scrollbar { height: 2px; }
         .tabs::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
@@ -179,13 +261,14 @@
         }
         .search-results-panel.show { display: flex; }
         .tab {
-            padding: 0 14px; display: flex; align-items: center; gap: 7px;
+            padding: 0 16px; display: flex; align-items: center; gap: 8px;
             border-right: 1px solid var(--border); cursor: pointer; white-space: nowrap;
-            position: relative; font-size: 12.5px; color: var(--text-muted); transition: all 0.15s;
+            position: relative; font-size: 13px; color: var(--text-muted); transition: all 0.2s;
+            font-family: var(--font-mono);
         }
         .tab:hover { background: var(--surface2); color: var(--text); }
         .tab.active { background: var(--surface2); color: var(--primary); font-weight: 600; }
-        .tab.active::after { content:''; position:absolute; bottom:0; left:0; right:0; height:2px; background: linear-gradient(90deg, var(--primary), var(--accent)); }
+        .tab.active::after { content:''; position:absolute; bottom:0; left:0; right:0; height:2px; background: linear-gradient(90deg, var(--primary), var(--accent)); box-shadow: 0 0 16px var(--primary); }
         .tab-close { width:16px; height:16px; display:flex; align-items:center; justify-content:center; border-radius:50%; font-size:10px; transition: all 0.15s; }
         .tab-close:hover { background: #ff4444; color:white; }
         .tab-add-btn {
@@ -201,10 +284,12 @@
 
         /* Status bar */
         .status-bar {
-            height: 28px; background: var(--surface); border-top: 1px solid var(--border);
+            height: 30px; background: var(--surface-glass); backdrop-filter: blur(14px);
+            border-top: 1px solid var(--border);
             display: flex; align-items: center; font-size: 11.5px; color: var(--text-muted);
-            padding: 0 14px; gap: 16px; flex-shrink: 0;
+            padding: 0 16px; gap: 18px; flex-shrink: 0;
             margin-top: auto; z-index: 12;
+            font-family: var(--font-mono);
         }
         .status-bar-sep { width: 1px; height: 14px; background: var(--border); }
         .ai-fab {
@@ -295,33 +380,110 @@
         }
         .preview-panel.active { width: 46%; min-width: 400px; opacity: 1; pointer-events: auto; }
         .preview-header {
-            padding: 10px 13px; background: var(--surface); border-bottom: 1px solid var(--border);
+            padding: 12px 14px; background: var(--surface-glass); backdrop-filter: blur(18px);
+            border-bottom: 1px solid var(--border);
             display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13.5px; flex-shrink: 0;
             flex-wrap: wrap;
         }
-        .preview-title { display: flex; align-items: center; gap: 8px; font-weight: 700; white-space: nowrap; }
-        .preview-controls { display: flex; align-items: center; gap: 5px; margin-inline-start: auto; }
+        .preview-title { display: flex; align-items: center; gap: 8px; font-weight: 700; white-space: nowrap; font-family: var(--font-display); }
+        .preview-controls { display: flex; align-items: center; gap: 6px; margin-inline-start: auto; flex-wrap: wrap; }
         .preview-code-nav {
             display: none; align-items: center; gap: 6px;
-            padding: 4px 8px; border-radius: 999px; border: 1px solid var(--border);
-            background: var(--surface2); color: var(--text-muted); font-size: 11.5px;
+            padding: 4px 10px; border-radius: 999px;
+            border: 1px solid rgba(34,211,238,0.35);
+            background: linear-gradient(135deg, rgba(34,211,238,0.10), rgba(167,139,250,0.10));
+            color: var(--text); font-size: 11.5px;
+            box-shadow: 0 0 0 1px rgba(34,211,238,0.08), 0 4px 18px rgba(34,211,238,0.15);
+            animation: cs-nav-in 0.3s ease-out;
         }
         .preview-code-nav.show { display: inline-flex; }
-        .preview-code-count { min-width: 62px; text-align: center; color: var(--text); font-weight: 600; }
+        @keyframes cs-nav-in {
+            from { opacity: 0; transform: translateY(-4px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        .preview-code-nav .nav-label {
+            font-family: var(--font-ui); font-weight: 700; color: var(--primary);
+            letter-spacing: 0.02em; font-size: 11px; white-space: nowrap;
+        }
+        .preview-code-nav .preview-device-btn {
+            width: 28px; height: 28px; border-radius: 8px;
+            background: rgba(34,211,238,0.15); border-color: transparent; color: var(--primary);
+        }
+        .preview-code-nav .preview-device-btn:hover {
+            background: rgba(34,211,238,0.28); color: #e6fbff;
+        }
+        .preview-code-count { min-width: 62px; text-align: center; color: var(--text); font-weight: 700; font-family: var(--font-mono); font-size: 11.5px; }
         .sketch-personal-form { display: none; }
         .sketch-personal-form.open { display: grid; }
         .preview-device-btn {
-            width: 30px; height: 30px; border-radius: 8px;
+            width: 34px; height: 34px; border-radius: 10px;
             border: 1px solid var(--border); background: var(--surface2);
-            color: var(--text-muted); cursor: pointer; transition: all 0.15s; font-size: 12px;
+            color: var(--text-muted); cursor: pointer; transition: all 0.2s; font-size: 13px;
         }
-        .preview-device-btn:hover { background: var(--surface3); color: var(--text); }
-        .preview-device-btn.active { background: var(--primary); color: #000; border-color: transparent; box-shadow: 0 2px 10px rgba(0,212,255,0.4); }
+        .preview-device-btn:hover { background: var(--surface3); color: var(--text); transform: translateY(-1px); }
+        .preview-device-btn.active { background: linear-gradient(135deg, var(--primary), var(--primary-2)); color: #001217; border-color: transparent; box-shadow: 0 4px 14px rgba(34,211,238,0.4); }
+        /* Pick-element toggle button */
+        .preview-pick-btn {
+            min-width: 34px; height: 34px; padding: 0 10px; border-radius: 10px;
+            border: 1px solid var(--border); background: var(--surface2);
+            color: var(--text-muted); cursor: pointer; transition: all 0.2s; font-size: 13px;
+            display: inline-flex; align-items: center; gap: 6px; font-weight: 600;
+            font-family: var(--font-ui);
+        }
+        .preview-pick-btn:hover { background: var(--surface3); color: var(--text); transform: translateY(-1px); }
+        .preview-pick-btn.active {
+            background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #3a1f00;
+            border-color: transparent; box-shadow: 0 4px 14px rgba(245,158,11,0.5);
+            animation: cs-pick-pulse 1.8s ease-in-out infinite;
+        }
+        @keyframes cs-pick-pulse {
+            0%,100% { box-shadow: 0 4px 14px rgba(245,158,11,0.5), 0 0 0 0 rgba(245,158,11,0.45); }
+            50%     { box-shadow: 0 4px 14px rgba(245,158,11,0.55), 0 0 0 10px rgba(245,158,11,0); }
+        }
+        /* Device + pick group — visually grouped next to each other */
+        .preview-device-group {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 5px 8px; border-radius: 14px;
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            box-shadow: inset 0 0 0 1px rgba(255,255,255,0.02);
+        }
+        .preview-device-group .preview-device-btn {
+            background: transparent; border-color: transparent;
+        }
+        .preview-device-group .preview-device-btn:hover {
+            background: var(--surface3); border-color: var(--border);
+        }
+        .preview-device-group .preview-device-btn.active {
+            background: linear-gradient(135deg, var(--primary), var(--primary-2));
+            color: #001217; border-color: transparent;
+            box-shadow: 0 4px 14px rgba(34,211,238,0.35);
+        }
+        .preview-device-divider {
+            display: inline-block; width: 1px; height: 22px; background: var(--border);
+            margin: 0 4px;
+        }
+        .preview-device-group .preview-pick-btn {
+            background: linear-gradient(135deg, rgba(251,191,36,0.12), rgba(245,158,11,0.12));
+            border: 1px dashed rgba(245,158,11,0.45);
+            color: #fbbf24;
+        }
+        .preview-device-group .preview-pick-btn:hover {
+            background: linear-gradient(135deg, rgba(251,191,36,0.25), rgba(245,158,11,0.22));
+            color: #fcd34d; transform: translateY(-1px);
+        }
+        .preview-device-group .preview-pick-btn.active {
+            border-style: solid;
+        }
         .preview-stage {
-            flex: 1; margin: 14px; border-radius: 12px;
-            background: #060612; display: flex; align-items: flex-start; justify-content: center;
-            overflow: auto; padding: 20px; box-shadow: inset 0 0 40px rgba(0,0,0,0.5);
+            flex: 1; margin: 16px; border-radius: 14px;
+            background:
+              radial-gradient(900px 400px at 50% 0%, rgba(34,211,238,0.06), transparent 60%),
+              linear-gradient(180deg, #04050d, #070816);
+            display: flex; align-items: flex-start; justify-content: center;
+            overflow: auto; padding: 22px; box-shadow: inset 0 0 60px rgba(0,0,0,0.6);
         }
+        [data-theme="light"] .preview-stage { background: linear-gradient(180deg, #e2e8f5, #cdd4ec); box-shadow: inset 0 0 40px rgba(15,23,42,0.08); }
         .preview-frame {
             --bezel-size: 14px;
             border-radius: 14px; overflow: hidden; background: #10111f;
@@ -337,6 +499,16 @@
         .preview-frame.device-phone .preview-scale-shell { border-radius: 16px; }
         .preview-viewport { position: absolute; top: 0; right: 0; transform-origin: top right; background: #fff; }
         #preview { width: 100%; border: none; height: 100%; display: block; }
+        /* Pick/hover hint overlay */
+        .pick-mode-banner {
+            position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+            background: linear-gradient(135deg, #fbbf24, #f59e0b); color: #3a1f00;
+            padding: 6px 14px; border-radius: 999px; font-size: 12px; font-weight: 700;
+            box-shadow: 0 6px 20px rgba(245,158,11,0.45);
+            z-index: 30; display: none; pointer-events: none;
+            animation: cs-float 2s ease-in-out infinite;
+        }
+        .pick-mode-banner.show { display: inline-flex; align-items: center; gap: 6px; }
 
         /* AI PANEL */
         .ai-panel {
@@ -578,6 +750,60 @@
             font-family: monospace; line-height: 1.5;
         }
 
+        /* ════ ASSETS (Firebase Storage) panel ════ */
+        .assets-section {
+            padding: 8px 12px 14px;
+            border-top: 1px dashed var(--border);
+            background: linear-gradient(180deg, transparent, rgba(124,58,237,0.05));
+        }
+        .assets-upload-btn {
+            width: 100%;
+            padding: 10px 14px; border-radius: 10px;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            background: linear-gradient(135deg, rgba(124,58,237,0.18), rgba(34,211,238,0.14));
+            border: 1px dashed rgba(167,139,250,0.5); color: var(--text);
+            cursor: pointer; font-size: 13px; font-weight: 600; font-family: var(--font-ui);
+            transition: all 0.2s;
+        }
+        .assets-upload-btn:hover { border-color: var(--accent); background: linear-gradient(135deg, rgba(124,58,237,0.28), rgba(34,211,238,0.22)); transform: translateY(-1px); box-shadow: 0 6px 18px rgba(124,58,237,0.25); }
+        .assets-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 10px; }
+        .asset-card {
+            position: relative; aspect-ratio: 1; border-radius: 9px; overflow: hidden;
+            border: 1px solid var(--border); background: var(--surface2); cursor: pointer;
+            transition: transform 0.15s, border-color 0.2s;
+        }
+        .asset-card:hover { border-color: var(--primary); transform: translateY(-2px); }
+        .asset-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .asset-card .asset-ext {
+            position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+            color: var(--text-muted); font-size: 11px; font-weight: 700; text-transform: uppercase;
+            background: var(--surface2);
+        }
+        .asset-card .asset-actions {
+            position: absolute; bottom: 2px; right: 2px; display: none; gap: 3px;
+        }
+        .asset-card:hover .asset-actions { display: flex; }
+        .asset-card .asset-actions button {
+            width: 22px; height: 22px; border-radius: 6px; border: none;
+            background: rgba(0,0,0,0.6); color: white; font-size: 10px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .asset-card .asset-actions button:hover { background: var(--primary); color: #001217; }
+        .asset-uploading {
+            display: flex; align-items: center; justify-content: center;
+            color: var(--primary); font-size: 14px; height: 100%;
+        }
+        .asset-uploading i { animation: cs-spin 0.8s linear infinite; }
+
+        /* Color picker trigger in editor toolbar */
+        .mini-tool-btn {
+            width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--border);
+            background: var(--surface3); color: var(--text-muted); cursor: pointer;
+            display: inline-flex; align-items: center; justify-content: center;
+            font-size: 13px; transition: all 0.18s;
+        }
+        .mini-tool-btn:hover { color: var(--primary); border-color: var(--primary); }
+
         /* Responsive layout tuning */
         @media (max-width: 1280px) {
             .preview-panel.active { width: 50%; min-width: 360px; }
@@ -604,7 +830,7 @@
 <header class="header">
     <div class="header-left">
         <div class="hamburger-btn" onclick="toggleSidebarMenu()"><i class="fas fa-bars"></i></div>
-        <div class="logo"><div class="logo-icon"><i class="fas fa-cube"></i></div><span>CodeSphere</span></div>
+        <div class="logo"><div class="logo-icon"><i class="fas fa-cube"></i></div><span>CodeSphere<sup style="font-size:10px;font-weight:600;color:var(--accent);margin-inline-start:4px;letter-spacing:0.1em;">PRO</sup></span></div>
     </div>
     <div class="nav-actions">
         <button onclick="triggerFileUpload()" class="btn" title="העלה"><i class="fas fa-upload"></i></button>
@@ -663,11 +889,15 @@
             </div>
         </div>
         <div class="status-bar">
-            <span class="status-bar-sep"></span>
-            <div><i class="fas fa-list-ol" style="font-size:10px;margin-left:4px;"></i> <span id="line-count">1</span> שורות</div>
-            <div><i class="fas fa-font" style="font-size:10px;margin-left:4px;"></i> <span id="char-count">0</span> תווים</div>
+            <div><i class="fas fa-list-ol" style="font-size:10px;margin-left:4px;color:var(--primary);"></i> <span id="line-count">1</span> שורות</div>
+            <div><i class="fas fa-font" style="font-size:10px;margin-left:4px;color:var(--accent);"></i> <span id="char-count">0</span> תווים</div>
             <span class="status-bar-sep"></span>
             <div id="current-file-name" style="color:var(--text);font-weight:600;">index.html</div>
+            <div style="margin-inline-start:auto;display:flex;align-items:center;gap:14px;">
+                <span id="status-cloud" style="display:inline-flex;align-items:center;gap:6px;"><i class="fas fa-cloud" style="color:var(--text-muted);"></i> <span id="status-cloud-text">לא מחובר</span></span>
+                <span id="status-pickmode" style="display:none;color:var(--warning);"><i class="fas fa-crosshairs"></i> מצב בחירה</span>
+                <span style="opacity:0.6;">CodeSphere · v2.0</span>
+            </div>
         </div>
     </div>
 
@@ -676,22 +906,34 @@
         <div class="preview-header">
             <div class="preview-title"><i class="fas fa-eye" style="color:var(--primary);"></i> תצוגה מקדימה</div>
             <div class="preview-controls">
-                <div class="preview-code-nav" id="preview-code-nav">
-                    <button class="preview-device-btn" id="preview-code-prev" title="קטע קודם" onclick="navigatePreviewCodeMatch(-1)">
+                <div class="preview-code-nav" id="preview-code-nav" title="ניווט בין התאמות בקוד">
+                    <span class="nav-label"><i class="fas fa-code"></i> התאמה</span>
+                    <button class="preview-device-btn" id="preview-code-prev" title="קטע קודם בקוד" onclick="navigatePreviewCodeMatch(-1)">
                         <i class="fas fa-chevron-up"></i>
                     </button>
                     <span class="preview-code-count" id="preview-code-count">0 / 0</span>
-                    <button class="preview-device-btn" id="preview-code-next" title="קטע הבא" onclick="navigatePreviewCodeMatch(1)">
+                    <button class="preview-device-btn" id="preview-code-next" title="קטע הבא בקוד" onclick="navigatePreviewCodeMatch(1)">
                         <i class="fas fa-chevron-down"></i>
                     </button>
                 </div>
-                <button class="preview-device-btn active" data-device="desktop" title="מחשב" onclick="setPreviewDevice('desktop')"><i class="fas fa-desktop"></i></button>
-                <button class="preview-device-btn" data-device="tablet" title="טאבלט" onclick="setPreviewDevice('tablet')"><i class="fas fa-tablet-alt"></i></button>
-                <button class="preview-device-btn" data-device="phone" title="טלפון" onclick="setPreviewDevice('phone')"><i class="fas fa-mobile-alt"></i></button>
+                <button class="preview-device-btn" title="רענן תצוגה" onclick="livePreview()"><i class="fas fa-rotate"></i></button>
+                <button class="preview-device-btn" title="פתח בחלון חדש" onclick="openPreviewInNewTab()"><i class="fas fa-up-right-from-square"></i></button>
+                <div class="preview-device-group" role="group" aria-label="מצבי תצוגה">
+                    <button class="preview-device-btn active" data-device="desktop" title="מחשב" onclick="setPreviewDevice('desktop')"><i class="fas fa-desktop"></i></button>
+                    <button class="preview-device-btn" data-device="tablet" title="טאבלט" onclick="setPreviewDevice('tablet')"><i class="fas fa-tablet-alt"></i></button>
+                    <button class="preview-device-btn" data-device="phone" title="טלפון" onclick="setPreviewDevice('phone')"><i class="fas fa-mobile-alt"></i></button>
+                    <span class="preview-device-divider" aria-hidden="true"></span>
+                    <button class="preview-pick-btn" id="preview-pick-btn" title="לחץ על אובייקט בתצוגה כדי להדגיש את הקוד שלו" onclick="togglePickMode()">
+                        <i class="fas fa-crosshairs"></i><span>בחר אובייקט</span>
+                    </button>
+                </div>
                 <div onclick="togglePreview()" style="cursor:pointer;font-size:20px;color:#ff5555;margin-inline-start:6px;">✕</div>
             </div>
         </div>
-        <div class="preview-stage">
+        <div class="preview-stage" style="position:relative;">
+            <div class="pick-mode-banner" id="pick-mode-banner">
+                <i class="fas fa-crosshairs"></i> מצב בחירה · רחף מעל אובייקט לתצוגה חיה, לחץ לנעילה · חיצים ↑↓ לניווט
+            </div>
             <div class="preview-frame device-desktop" id="preview-frame">
                 <div class="preview-scale-shell" id="preview-scale-shell">
                     <div class="preview-viewport" id="preview-viewport">
@@ -721,6 +963,19 @@
         <div id="projects-list"></div>
         <div class="section-header" style="margin-top:6px;"><span>קבצים ללא פרויקט</span></div>
         <div id="files-list"></div>
+
+        <div class="section-header" style="margin-top:12px;">
+            <span><i class="fas fa-images" style="color:var(--accent);margin-inline-end:4px;"></i> נכסים (Firebase Storage)</span>
+            <button onclick="document.getElementById('assets-file-input').click()" class="btn-icon" style="width:22px;height:22px;font-size:11px;" title="העלה תמונה/קובץ"><i class="fas fa-plus"></i></button>
+        </div>
+        <div class="assets-section">
+            <button class="assets-upload-btn" onclick="document.getElementById('assets-file-input').click()">
+                <i class="fas fa-cloud-arrow-up"></i> העלה תמונה / נכס לענן
+            </button>
+            <input type="file" id="assets-file-input" style="display:none" multiple accept="image/*,video/*,audio/*,.svg,.pdf,.zip,.json" onchange="handleAssetUpload(event)">
+            <div id="assets-grid" class="assets-grid"></div>
+            <div id="assets-empty" style="font-size:12px;color:var(--text-muted);text-align:center;padding:8px 0;">אין נכסים עדיין</div>
+        </div>
     </div>
     <div onclick="showCloudFiles()" style="padding:12px 16px;text-align:center;color:var(--primary);border-top:1px solid var(--border);cursor:pointer;font-size:13px;flex-shrink:0;">
         <i class="fas fa-cloud"></i> טעון מהענן
@@ -1117,6 +1372,9 @@ let _shareUrl = '';
 let addToProjectState = null;
 let pendingChatAttachments = []; // { tempId, name, url, type, uploading }
 let _authMode = 'login'; // 'login' | 'register'
+let userAssets = []; // { id, name, url, type, size, uploadedAt }
+let isPickMode = false;
+let lastPickedElementInfo = null;
 
 const editorElement = document.getElementById('code-editor');
 let monacoEditor = null;
@@ -1462,6 +1720,8 @@ function ensureConversationLoadedForCurrentFile() {
 
 function persistAIConversation() {
     aiConversationsByContext[activeAIContextKey] = [...aiConversationHistory];
+    // Immediately trigger the debounced cloud save so the conversation follows the user
+    try { saveToStorage(); } catch (e) {}
 }
 
 function setCurrentAIRequestState(isProcessing) {
@@ -1622,6 +1882,10 @@ async function callAIWorker(route, payload, signal = undefined) {
                     projects: data.projects,
                     personalSketches: Array.isArray(data.personalSketches) ? data.personalSketches : [],
                     aiConversationsByContext: data.aiConversationsByContext || {},
+                    userAssets: Array.isArray(data.userAssets) ? data.userAssets.map(a => ({
+                        id: a.id, name: a.name, url: a.url, type: a.type,
+                        size: a.size || 0, uploadedAt: a.uploadedAt || 0, storagePath: a.storagePath || ''
+                    })) : [],
                     nextNewFileSequence: Number.isFinite(data.nextNewFileSequence) ? data.nextNewFileSequence : 1,
                     workspaceUi: {
                         openTabFileIds: Array.isArray(data.workspaceUi?.openTabFileIds) ? data.workspaceUi.openTabFileIds : [],
@@ -1739,10 +2003,16 @@ function updateAuthUI(user) {
     const profileAvatarPreview = document.getElementById('profile-avatar-preview');
     const profileNameInput = document.getElementById('profile-name-input');
 
+    // Update status-bar cloud indicator
+    const statusCloud     = document.getElementById('status-cloud');
+    const statusCloudText = document.getElementById('status-cloud-text');
+
     if (user) {
         dot.className = 'ok';
         const name    = user.displayName || user.email.split('@')[0];
         const initial = name[0].toUpperCase();
+        if (statusCloud) statusCloud.style.color = '#22c55e';
+        if (statusCloudText) statusCloudText.textContent = 'מחובר · ענן פעיל';
 
         // Header chip
         userChip.style.display = 'flex';
@@ -1781,6 +2051,8 @@ function updateAuthUI(user) {
         dot.className = 'noauth';
         userChip.style.display  = 'none';
         loginBtn.style.display  = 'flex';
+        if (statusCloud) statusCloud.style.color = 'var(--text-muted)';
+        if (statusCloudText) statusCloudText.textContent = 'לא מחובר';
 
         menuName.textContent  = 'אורח';
         menuEmail.textContent = 'לחץ להתחבר / להירשם';
@@ -1969,8 +2241,27 @@ function previewSelectedProfileImage() {
     showToast('נבחרה תמונה חדשה - לחץ שמור שינויים כדי להעלות לענן', 'image', '#22c55e');
 }
 
+function resizeImageToBase64(file, maxSize = 128) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        const objectUrl = URL.createObjectURL(file);
+        img.onload = () => {
+            URL.revokeObjectURL(objectUrl);
+            const scale = Math.min(1, maxSize / Math.max(img.width || 1, img.height || 1));
+            const w = Math.round((img.width || maxSize) * scale);
+            const h = Math.round((img.height || maxSize) * scale);
+            const canvas = document.createElement('canvas');
+            canvas.width = w; canvas.height = h;
+            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+            resolve(canvas.toDataURL('image/jpeg', 0.82));
+        };
+        img.onerror = () => { URL.revokeObjectURL(objectUrl); resolve(null); };
+        img.src = objectUrl;
+    });
+}
+
 async function saveProfileChanges() {
-    if (!_auth || !_storage || !currentUser) return;
+    if (!_auth || !currentUser) return;
     const nameInput = document.getElementById('profile-name-input');
     const displayName = String(nameInput?.value || '').trim();
     if (!displayName) {
@@ -1980,13 +2271,8 @@ async function saveProfileChanges() {
     try {
         let nextPhotoURL = currentUser.photoURL || '';
         if (pendingProfileImageFile) {
-            const ext = (pendingProfileImageFile.name.split('.').pop() || 'jpg').toLowerCase();
-            const path = `profile-images/${currentUser.uid}/avatar.${ext}`;
-            const ref = _auth._helpers.storageRef(_storage, path);
-            await _auth._helpers.uploadBytes(ref, pendingProfileImageFile, {
-                contentType: pendingProfileImageFile.type || 'image/jpeg'
-            });
-            nextPhotoURL = await _auth._helpers.getDownloadURL(ref);
+            const base64 = await resizeImageToBase64(pendingProfileImageFile, 128);
+            if (base64) nextPhotoURL = base64;
         }
 
         await _auth._helpers.updateProfile(currentUser, { displayName, photoURL: nextPhotoURL || null });
@@ -2000,7 +2286,7 @@ async function saveProfileChanges() {
         updateAuthUI(currentUser);
         pendingProfileImageFile = null;
         document.getElementById('profile-image-input').value = '';
-        showToast('הפרופיל נשמר בהצלחה בפיירבייס', 'floppy-disk', '#22c55e');
+        showToast('הפרופיל נשמר בהצלחה', 'floppy-disk', '#22c55e');
     } catch (error) {
         showToast(`שגיאה בשמירת פרופיל: ${error?.message || 'נכשל'}`, 'triangle-exclamation', '#ff5555');
     }
@@ -2173,6 +2459,7 @@ function getCurrentWorkspaceSnapshot() {
         projects,
         personalSketches,
         aiConversationsByContext,
+        userAssets,
         nextNewFileSequence,
         workspaceUi: {
             openTabFileIds: Array.isArray(openTabFileIds) ? [...openTabFileIds] : [],
@@ -2218,6 +2505,9 @@ function getWorkspaceSignature(workspaceData) {
         projects: Array.isArray(workspaceData?.projects) ? workspaceData.projects : [],
         personalSketches: Array.isArray(workspaceData?.personalSketches) ? workspaceData.personalSketches : [],
         aiConversationsByContext: workspaceData?.aiConversationsByContext || {},
+        userAssets: Array.isArray(workspaceData?.userAssets) ? workspaceData.userAssets.map(a => ({
+            id: a.id || '', url: a.url || '', name: a.name || ''
+        })) : [],
         nextNewFileSequence: Number.isFinite(workspaceData?.nextNewFileSequence) ? workspaceData.nextNewFileSequence : 1,
         workspaceUi: {
             openTabFileIds: Array.isArray(workspaceData?.workspaceUi?.openTabFileIds) ? workspaceData.workspaceUi.openTabFileIds : [],
@@ -2251,6 +2541,7 @@ function applyWorkspaceData(workspaceData) {
         projects = Array.isArray(workspaceData?.projects) ? workspaceData.projects : [];
         personalSketches = Array.isArray(workspaceData?.personalSketches) ? workspaceData.personalSketches : [];
         aiConversationsByContext = workspaceData?.aiConversationsByContext || {};
+        userAssets = Array.isArray(workspaceData?.userAssets) ? workspaceData.userAssets : [];
         nextNewFileSequence = Number.isFinite(workspaceData?.nextNewFileSequence) ? workspaceData.nextNewFileSequence : 1;
 
         syncNextNewFileSequenceFromFiles();
@@ -2288,6 +2579,7 @@ function applyWorkspaceData(workspaceData) {
 
         renderProjectsAndFiles();
         renderTabs();
+        renderAssetsGrid();
         ensureConversationLoadedForCurrentFile();
         updateStats();
         saveToStorage();
@@ -2319,7 +2611,7 @@ async function startWorkspaceSync(uid) {
 function toggleTheme() {
     document.body.dataset.theme = document.body.dataset.theme === 'light' ? 'dark' : 'light';
     if (monacoEditor && window.monaco) {
-        monaco.editor.setTheme(document.body.dataset.theme === 'light' ? 'vs' : 'vs-dark');
+        monaco.editor.setTheme(document.body.dataset.theme === 'light' ? 'codesphere-light' : 'codesphere-dark');
     }
 }
 
@@ -2653,21 +2945,120 @@ function injectPreviewInspector(html) {
 (() => {
   if (window.__codesphereInspectorAttached) return;
   window.__codesphereInspectorAttached = true;
-  const pick = (el) => {
+  window.parent.postMessage({ source: 'codesphere-preview', type: 'inspector-ready' }, '*');
+  document.documentElement.style.cursor = pickMode ? 'crosshair' : '';
+
+  // Inject styles for hover/selected outlines (only visible in pick mode)
+  const style = document.createElement('style');
+  style.id = '__codesphere_inspector_styles';
+  style.textContent = [
+    '.__cs-hover-outline{outline:2px solid #22d3ee!important;outline-offset:1px!important;cursor:crosshair!important;background:rgba(34,211,238,0.12)!important;}',
+    '.__cs-selected-outline{outline:3px solid #a78bfa!important;outline-offset:2px!important;box-shadow:0 0 0 9999px rgba(0,0,0,0.12) inset!important;animation:__cs_pulse 1.2s ease-in-out 3;}',
+    '@keyframes __cs_pulse{0%,100%{outline-color:#a78bfa}50%{outline-color:#f472b6}}',
+    '.__cs-label{position:fixed;z-index:2147483647;background:#0f172a;color:#22d3ee;font:600 11px/1.2 system-ui,sans-serif;padding:4px 8px;border-radius:6px;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,0.4);white-space:nowrap;max-width:80vw;overflow:hidden;text-overflow:ellipsis;border:1px solid rgba(34,211,238,0.4);}'
+  ].join('');
+  document.head && document.head.appendChild(style);
+
+  const label = document.createElement('div');
+  label.className = '__cs-label';
+  label.style.display = 'none';
+  document.documentElement.appendChild(label);
+
+  let pickMode = ${isPickMode};
+  let lastHover = null;
+  let lastSelected = null;
+  let hoverTicking = false;
+  let pendingHoverEl = null;
+  const isInspectorEl = (el) => el === label || el === style;
+
+  const describe = (el) => {
     if (!el || !(el instanceof Element)) return null;
     const text = (el.innerText || el.textContent || '').trim().replace(/\\s+/g, ' ').slice(0, 80);
+    // Compute index among siblings of same tag to help parent find uniquely
+    let nthOfType = 1;
+    try {
+      let prev = el.previousElementSibling;
+      while (prev) { if (prev.tagName === el.tagName) nthOfType++; prev = prev.previousElementSibling; }
+    } catch(e) {}
     return {
       tag: (el.tagName || '').toLowerCase(),
       id: el.id || '',
       classList: Array.from(el.classList || []).slice(0, 6),
-      text
+      attrs: (() => { const o = {}; try { for (const a of el.attributes) { if (['src','href','name','type','data-id','data-role'].includes(a.name)) o[a.name] = a.value; } } catch(e) {}; return o; })(),
+      text,
+      nthOfType
     };
   };
-  document.addEventListener('click', (event) => {
-    const details = pick(event.target);
+
+  const clearHover = () => { if (lastHover) { lastHover.classList.remove('__cs-hover-outline'); lastHover = null; } label.style.display = 'none'; };
+  const clearSelected = () => { if (lastSelected) { lastSelected.classList.remove('__cs-selected-outline'); lastSelected = null; } };
+
+  const sendHover = (el) => {
+    if (!(el instanceof Element) || isInspectorEl(el)) return;
+    const details = describe(el);
     if (!details) return;
-    window.parent.postMessage({ source: 'codesphere-preview', type: 'element-picked', details }, '*');
+    window.parent.postMessage({ source: 'codesphere-preview', type: 'element-hovered', details }, '*');
+  };
+
+  document.addEventListener('mouseover', (event) => {
+    if (!pickMode) return;
+    const el = event.target;
+    if (!(el instanceof Element) || isInspectorEl(el)) return;
+    if (lastHover && lastHover !== el) lastHover.classList.remove('__cs-hover-outline');
+    el.classList.add('__cs-hover-outline');
+    lastHover = el;
+    const d = describe(el);
+    if (d) {
+      const sel = (d.tag || '') + (d.id ? '#' + d.id : '') + (d.classList.length ? '.' + d.classList.join('.') : '');
+      label.textContent = sel;
+      label.style.display = 'block';
+      const rect = el.getBoundingClientRect();
+      label.style.top = Math.max(4, rect.top - 24) + 'px';
+      label.style.left = Math.max(4, rect.left) + 'px';
+    }
+    // Throttle live-sync to parent via rAF
+    pendingHoverEl = el;
+    if (!hoverTicking) {
+      hoverTicking = true;
+      requestAnimationFrame(() => {
+        hoverTicking = false;
+        if (pendingHoverEl) { sendHover(pendingHoverEl); pendingHoverEl = null; }
+      });
+    }
   }, true);
+
+  document.addEventListener('mouseout', (event) => {
+    if (!pickMode) return;
+    if (event.target === lastHover) {
+      // Tell parent the hover left — lets editor drop the live highlight
+      window.parent.postMessage({ source: 'codesphere-preview', type: 'element-unhovered' }, '*');
+    }
+  }, true);
+
+  document.addEventListener('click', (event) => {
+    const details = describe(event.target);
+    if (!details) return;
+    if (pickMode) {
+      event.preventDefault();
+      event.stopPropagation();
+      clearSelected();
+      if (event.target instanceof Element) {
+        event.target.classList.add('__cs-selected-outline');
+        lastSelected = event.target;
+      }
+    }
+    window.parent.postMessage({ source: 'codesphere-preview', type: 'element-picked', details, pickMode }, '*');
+  }, true);
+
+  window.addEventListener('message', (e) => {
+    const data = e && e.data;
+    if (!data || data.source !== 'codesphere-parent') return;
+    if (data.type === 'set-pick-mode') {
+      pickMode = !!data.enabled;
+      if (!pickMode) { clearHover(); clearSelected(); }
+      document.documentElement.style.cursor = pickMode ? 'crosshair' : '';
+    }
+  });
 })();
 <\\/script>`;
     if (/<\/body>/i.test(html)) return html.replace(/<\/body>/i, `${inspector}</body>`);
@@ -2683,6 +3074,46 @@ function livePreview() {
     const html = injectPreviewInspector(bundleToHtml(scope, activeFileName));
     const blob = new Blob([html], { type: 'text/html' });
     preview.src = URL.createObjectURL(blob);
+    preview.addEventListener('load', () => {
+        try {
+            preview.contentWindow?.postMessage({ source: 'codesphere-parent', type: 'set-pick-mode', enabled: isPickMode }, '*');
+        } catch (e) {}
+    }, { once: true });
+}
+
+function togglePickMode() {
+    isPickMode = !isPickMode;
+    const btn = document.getElementById('preview-pick-btn');
+    const banner = document.getElementById('pick-mode-banner');
+    const statusPick = document.getElementById('status-pickmode');
+    if (btn) btn.classList.toggle('active', isPickMode);
+    if (banner) banner.classList.toggle('show', isPickMode);
+    if (statusPick) statusPick.style.display = isPickMode ? 'inline-flex' : 'none';
+    // Turning pick-mode OFF resets the lock and clears all live highlights
+    if (!isPickMode) {
+        __csHoverMatchLocked = false;
+        __csLastHoverSignature = '';
+        previewCodeMatches = [];
+        currentPreviewCodeMatchIndex = -1;
+        updatePreviewCodeNav();
+        clearAllMatchHighlights();
+    }
+    try {
+        preview.contentWindow?.postMessage({ source: 'codesphere-parent', type: 'set-pick-mode', enabled: isPickMode }, '*');
+    } catch (e) {}
+    showToast(isPickMode ? 'מצב בחירה פעיל · רחף מעל אובייקט כדי לראות את הקוד שלו' : 'מצב בחירה כובה', isPickMode ? 'crosshairs' : 'check', isPickMode ? '#f59e0b' : '#22c55e');
+}
+
+function openPreviewInNewTab() {
+    if (currentFileIndex < 0) { showToast('אין קובץ פעיל', 'exclamation-circle', '#ff9800'); return; }
+    const scope = getPreviewFileScope();
+    if (!scope.length) return;
+    const activeFileName = files[currentFileIndex]?.name || '';
+    const html = bundleToHtml(scope, activeFileName);
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
 }
 
 function findCodeMatchesForPickedElement(details) {
@@ -2694,45 +3125,107 @@ function findCodeMatchesForPickedElement(details) {
     const tag = String(details.tag || '').trim();
 
     const escaped = v => v.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const collect = (content, regex, type, fileIndex) => {
-        if (!regex) return;
-        for (const match of content.matchAll(regex)) {
-            matches.push({
-                fileIndex,
-                start: match.index,
-                end: match.index + Math.max(1, match[0].length),
-                type
-            });
-            if (matches.length > 80) return;
-        }
+    const add = (fileIndex, start, end, type, priority) => {
+        matches.push({ fileIndex, start, end: Math.max(start + 1, end), type, priority: priority || 0 });
     };
 
+    // Inert tags we should skip when the only clue is the tag itself
+    const vagueTags = new Set(['div','span','body','html','main','section','article','p','a','button','img']);
+
     files.forEach((file, fileIndex) => {
-        const name = String(file?.name || '').toLowerCase();
         const content = String(file?.content || '');
         if (!content) return;
 
-        if (/\.html?$/.test(name)) {
-            if (id) collect(content, new RegExp(`id\\s*=\\s*["']${escaped(id)}["']`, 'gi'), 'HTML', fileIndex);
-            classes.forEach(cls => collect(content, new RegExp(`class\\s*=\\s*["'][^"']*\\b${escaped(cls)}\\b[^"']*["']`, 'gi'), 'HTML', fileIndex));
-            if (textSnippet && textSnippet.length >= 3) collect(content, new RegExp(escaped(textSnippet.slice(0, 50)), 'gi'), 'HTML', fileIndex);
-            if (tag) collect(content, new RegExp(`<${escaped(tag)}\\b`, 'gi'), 'HTML', fileIndex);
-        }
-        if (/\.css$/.test(name)) {
-            if (id) collect(content, new RegExp(`#${escaped(id)}\\b`, 'g'), 'CSS', fileIndex);
-            classes.forEach(cls => collect(content, new RegExp(`\\.${escaped(cls)}\\b`, 'g'), 'CSS', fileIndex));
-            if (tag) collect(content, new RegExp(`(^|[\\s,{>])${escaped(tag)}([\\s.{:#\\[]|$)`, 'gmi'), 'CSS', fileIndex);
-        }
-        if (/\.js$/.test(name)) {
-            if (id) {
-                collect(content, new RegExp(`getElementById\\(\\s*["']${escaped(id)}["']\\s*\\)`, 'g'), 'JS', fileIndex);
-                collect(content, new RegExp(`querySelector\\(\\s*["']#${escaped(id)}["']\\s*\\)`, 'g'), 'JS', fileIndex);
+        /* --- 1. Opening HTML tag of the actual element, with specificity ranking --- */
+        if (tag) {
+            const openTagRegex = new RegExp(`<${escaped(tag)}\\b[^>]*>`, 'gi');
+            for (const m of content.matchAll(openTagRegex)) {
+                const fragment = m[0];
+                let score = 10;
+                if (id && new RegExp(`id\\s*=\\s*["']${escaped(id)}["']`, 'i').test(fragment)) score += 200;
+                if (classes.length) {
+                    let hits = 0;
+                    classes.forEach(cls => { if (new RegExp(`\\bclass\\s*=\\s*["'][^"']*\\b${escaped(cls)}\\b[^"']*["']`, 'i').test(fragment)) hits++; });
+                    if (hits) score += 60 + hits * 15;
+                }
+                if (textSnippet && textSnippet.length >= 3) {
+                    // Proximity heuristic — text appears shortly after this opening tag
+                    const tail = content.slice(m.index + fragment.length, m.index + fragment.length + 400);
+                    const key = textSnippet.slice(0, 40);
+                    if (tail.includes(key)) score += 55;
+                }
+                // Don't flood results with generic <div> tags that don't match any identifier
+                if (score <= 10 && vagueTags.has(tag.toLowerCase())) continue;
+                add(fileIndex, m.index, m.index + fragment.length, 'HTML-open', score);
+                if (matches.length > 200) break;
             }
-            classes.forEach(cls => collect(content, new RegExp(`querySelector(All)?\\(\\s*["'][^"']*\\.${escaped(cls)}[^"']*["']\\s*\\)`, 'g'), 'JS', fileIndex));
-            if (textSnippet && textSnippet.length >= 4) collect(content, new RegExp(escaped(textSnippet.slice(0, 50)), 'gi'), 'JS', fileIndex);
+        }
+
+        /* --- 2. Standalone id attribute (e.g. in the middle of a big tag) --- */
+        if (id) {
+            for (const m of content.matchAll(new RegExp(`id\\s*=\\s*["']${escaped(id)}["']`, 'gi'))) {
+                add(fileIndex, m.index, m.index + m[0].length, 'HTML-id', 150);
+            }
+        }
+
+        /* --- 3. class="..." attributes that include any of our classes --- */
+        classes.forEach(cls => {
+            for (const m of content.matchAll(new RegExp(`class\\s*=\\s*["'][^"']*\\b${escaped(cls)}\\b[^"']*["']`, 'gi'))) {
+                add(fileIndex, m.index, m.index + m[0].length, 'HTML-class', 50);
+            }
+        });
+
+        /* --- 4. CSS selectors — work inside <style> blocks of single-file HTML too --- */
+        if (id) {
+            for (const m of content.matchAll(new RegExp(`#${escaped(id)}\\b`, 'g'))) {
+                add(fileIndex, m.index, m.index + m[0].length, 'CSS-id', 90);
+            }
+        }
+        classes.forEach(cls => {
+            for (const m of content.matchAll(new RegExp(`\\.${escaped(cls)}\\b(?=[\\s,.{:#\\[>+~])`, 'g'))) {
+                add(fileIndex, m.index, m.index + m[0].length, 'CSS-class', 40);
+            }
+        });
+
+        /* --- 5. JS references (inside <script> blocks too) --- */
+        if (id) {
+            for (const m of content.matchAll(new RegExp(`getElementById\\s*\\(\\s*["']${escaped(id)}["']\\s*\\)`, 'g'))) {
+                add(fileIndex, m.index, m.index + m[0].length, 'JS', 80);
+            }
+            for (const m of content.matchAll(new RegExp(`querySelector(?:All)?\\s*\\(\\s*["']#${escaped(id)}["']\\s*\\)`, 'g'))) {
+                add(fileIndex, m.index, m.index + m[0].length, 'JS', 70);
+            }
+        }
+        classes.forEach(cls => {
+            for (const m of content.matchAll(new RegExp(`querySelector(?:All)?\\s*\\(\\s*["'][^"']*\\.${escaped(cls)}[^"']*["']\\s*\\)`, 'g'))) {
+                add(fileIndex, m.index, m.index + m[0].length, 'JS', 30);
+            }
+        });
+
+        /* --- 6. Exact inner text snippet (helps for static content, ≥5 chars) --- */
+        if (textSnippet && textSnippet.length >= 5) {
+            const key = textSnippet.slice(0, 60);
+            for (const m of content.matchAll(new RegExp(escaped(key), 'g'))) {
+                add(fileIndex, m.index, m.index + m[0].length, 'TEXT', 25);
+                if (matches.length > 300) break;
+            }
         }
     });
-    return matches.slice(0, 120);
+
+    /* Sort by priority (high → low), then by file order and code position */
+    matches.sort((a, b) => (b.priority - a.priority) || (a.fileIndex - b.fileIndex) || (a.start - b.start));
+
+    /* Deduplicate exact duplicates and prefer earliest occurrence of a given range */
+    const seen = new Set();
+    const out = [];
+    for (const m of matches) {
+        const k = `${m.fileIndex}:${m.start}:${m.end}`;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        out.push(m);
+        if (out.length >= 80) break;
+    }
+    return out;
 }
 
 function updatePreviewCodeNav() {
@@ -2743,13 +3236,107 @@ function updatePreviewCodeNav() {
     previewCodeNext.disabled = !hasMatches;
 }
 
+let __csFlashDecoIds = [];
+let __csCurrentMatchDecoIds = [];
+let __csAllMatchDecoIds = [];
+let __csHoverMatchLocked = false;   // true once user clicks to "pin" the selection
+let __csLastHoverSignature = '';
+
+/* Highlight every match in the editor like a multi-result search —
+   the "current" one is emphasized in cyan, the rest in dim yellow. */
+function highlightAllMatchesInEditor(matches, currentIndex) {
+    if (!monacoEditor || !window.monaco) return;
+    const model = monacoEditor.getModel();
+    if (!model) return;
+    // Only matches for the currently-open file get inline decorations
+    const activeFileIndex = currentFileIndex;
+    const decos = [];
+    matches.forEach((hit, idx) => {
+        if (hit.fileIndex !== activeFileIndex) return;
+        if (idx === currentIndex) return; // current match is drawn separately
+        try {
+            const s = model.getPositionAt(hit.start);
+            const e = model.getPositionAt(hit.end);
+            const range = new monaco.Range(s.lineNumber, s.column, e.lineNumber, e.column);
+            decos.push({
+                range,
+                options: {
+                    className: 'cs-editor-all-match',
+                    inlineClassName: 'cs-editor-all-match-inline',
+                    linesDecorationsClassName: 'cs-editor-all-glyph',
+                    stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+                    overviewRuler: { color: 'rgba(251,191,36,0.7)', position: monaco.editor.OverviewRulerLane.Left },
+                    minimap: { color: '#fbbf24', position: 1 }
+                }
+            });
+        } catch(e) {}
+    });
+    __csAllMatchDecoIds = monacoEditor.deltaDecorations(__csAllMatchDecoIds, decos);
+}
+function clearAllMatchHighlights() {
+    if (!monacoEditor) return;
+    try { __csAllMatchDecoIds = monacoEditor.deltaDecorations(__csAllMatchDecoIds, []); } catch(e) {}
+    try { __csCurrentMatchDecoIds = monacoEditor.deltaDecorations(__csCurrentMatchDecoIds, []); } catch(e) {}
+}
+
+function flashEditorMatch(startOffset, endOffset) {
+    if (!monacoEditor || !window.monaco) return;
+    const model = monacoEditor.getModel();
+    if (!model) return;
+    const s = model.getPositionAt(startOffset);
+    const e = model.getPositionAt(endOffset);
+    const range = new monaco.Range(s.lineNumber, s.column, e.lineNumber, e.column);
+
+    // Short, bright flash (yellow → cyan → fade)
+    __csFlashDecoIds = monacoEditor.deltaDecorations(__csFlashDecoIds, [{
+        range,
+        options: {
+            inlineClassName: 'cs-editor-flash',
+            className: 'cs-editor-flash',
+            overviewRuler: { color: '#22d3ee', position: monaco.editor.OverviewRulerLane.Right },
+            minimap: { color: '#22d3ee', position: 1 }
+        }
+    }]);
+    setTimeout(() => {
+        try { __csFlashDecoIds = monacoEditor.deltaDecorations(__csFlashDecoIds, []); } catch(e) {}
+    }, 1800);
+
+    // Persistent "current match" marker — stays until user picks a new element
+    __csCurrentMatchDecoIds = monacoEditor.deltaDecorations(__csCurrentMatchDecoIds, [{
+        range,
+        options: {
+            isWholeLine: false,
+            inlineClassName: 'cs-editor-current-match-inline',
+            className: 'cs-editor-current-match',
+            linesDecorationsClassName: 'cs-editor-glyph-match',
+            stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+            overviewRuler: { color: '#22d3ee', position: monaco.editor.OverviewRulerLane.Full },
+            minimap: { color: '#22d3ee', position: 2 }
+        }
+    }]);
+
+    // Reveal the range in the center of the editor viewport
+    try {
+        monacoEditor.revealRangeInCenterIfOutsideViewport(range, monaco.editor.ScrollType.Smooth);
+        monacoEditor.setSelection(range);
+        monacoEditor.focus();
+    } catch(e) {}
+}
+function clearEditorCurrentMatch() {
+    if (!monacoEditor) return;
+    try { __csCurrentMatchDecoIds = monacoEditor.deltaDecorations(__csCurrentMatchDecoIds, []); } catch(e) {}
+}
+
 function jumpToPreviewCodeMatch(index) {
     if (!previewCodeMatches.length || index < 0 || index >= previewCodeMatches.length) return;
     currentPreviewCodeMatchIndex = index;
     const hit = previewCodeMatches[index];
     if (!hit) return;
     openFile(hit.fileIndex);
-    editor.setSelectionRange(hit.start, hit.end);
+    try { editor.setSelectionRange && editor.setSelectionRange(hit.start, hit.end); } catch(e) {}
+    flashEditorMatch(hit.start, hit.end);
+    // Re-render search-result style for the rest after switching current
+    highlightAllMatchesInEditor(previewCodeMatches, currentPreviewCodeMatchIndex);
     updatePreviewCodeNav();
 }
 
@@ -2759,17 +3346,76 @@ function navigatePreviewCodeMatch(step) {
     jumpToPreviewCodeMatch(next);
 }
 
-function handlePreviewMessage(event) {
-    const data = event?.data;
-    if (!data || data.source !== 'codesphere-preview' || data.type !== 'element-picked') return;
-    previewCodeMatches = findCodeMatchesForPickedElement(data.details);
+/* Build a "fingerprint" for a hovered element so we don't re-search on identical hovers */
+function __csDetailsSignature(d) {
+    if (!d) return '';
+    return [d.tag || '', d.id || '', (d.classList || []).join('.'), (d.text || '').slice(0, 32), d.nthOfType || ''].join('|');
+}
+
+function handleLiveHover(details) {
+    if (!details || __csHoverMatchLocked) return;
+    const sig = __csDetailsSignature(details);
+    if (sig === __csLastHoverSignature) return; // same element — skip work
+    __csLastHoverSignature = sig;
+    lastPickedElementInfo = details;
+    // Keep the in-memory file copy in sync with Monaco before searching
+    if (currentFileIndex >= 0 && files[currentFileIndex]) {
+        files[currentFileIndex].content = editor.value;
+    }
+    previewCodeMatches = findCodeMatchesForPickedElement(details);
     currentPreviewCodeMatchIndex = previewCodeMatches.length ? 0 : -1;
     updatePreviewCodeNav();
     if (previewCodeMatches.length) {
-        jumpToPreviewCodeMatch(0);
-        showToast('נמצאו קטעי קוד תואמים לרכיב שנלחץ', 'crosshairs', '#22c55e');
+        const hit = previewCodeMatches[0];
+        if (hit.fileIndex !== currentFileIndex) openFile(hit.fileIndex);
+        flashEditorMatch(hit.start, hit.end);
+        highlightAllMatchesInEditor(previewCodeMatches, 0);
     } else {
-        showToast('לא נמצאו התאמות ישירות בקבצים', 'info-circle', '#f59e0b');
+        clearAllMatchHighlights();
+    }
+}
+
+function handleLiveUnhover() {
+    if (__csHoverMatchLocked) return;
+    __csLastHoverSignature = '';
+    // keep decorations briefly so flickering between siblings doesn't feel jumpy
+}
+
+function handlePreviewMessage(event) {
+    const data = event?.data;
+    if (!data || data.source !== 'codesphere-preview') return;
+
+    // Inspector just loaded — confirm pick mode state
+    if (data.type === 'inspector-ready') {
+        try { preview.contentWindow?.postMessage({ source: 'codesphere-parent', type: 'set-pick-mode', enabled: isPickMode }, '*'); } catch(e) {}
+        return;
+    }
+
+    // LIVE HOVER — Chrome-DevTools-style live highlight as the cursor moves
+    if (data.type === 'element-hovered') {
+        handleLiveHover(data.details);
+        return;
+    }
+    if (data.type === 'element-unhovered') {
+        handleLiveUnhover();
+        return;
+    }
+
+    // CLICK — "lock" the current selection so further hovers don't replace it
+    if (data.type !== 'element-picked') return;
+    lastPickedElementInfo = data.details;
+    previewCodeMatches = findCodeMatchesForPickedElement(data.details);
+    currentPreviewCodeMatchIndex = previewCodeMatches.length ? 0 : -1;
+    updatePreviewCodeNav();
+    const tag = data.details?.tag || '?';
+    const idPart = data.details?.id ? ' #' + data.details.id : '';
+    const clsPart = (data.details?.classList || []).length ? ' .' + data.details.classList.join('.') : '';
+    if (previewCodeMatches.length) {
+        __csHoverMatchLocked = true; // pin this selection
+        jumpToPreviewCodeMatch(0);
+        showToast(`ננעל: <${tag}>${idPart}${clsPart} · ${previewCodeMatches.length} תוצאות · השתמש בחצים לניווט`, 'thumbtack', '#22c55e');
+    } else {
+        showToast(`לא נמצאו התאמות לרכיב <${tag}>`, 'info-circle', '#f59e0b');
     }
 }
 
@@ -2837,10 +3483,34 @@ function toggleAIPanel() {
     }
 }
 
+/* Pick any http(s) URLs out of the message and render image URLs as <img> previews,
+   everything else as clickable links. Non-url text is escaped as usual. */
+function renderAIMessageContent(text) {
+    const urlRegex = /(https?:\/\/[^\s<>"']+)/g;
+    const out = [];
+    let lastIndex = 0;
+    const imageSuffix = /\.(png|jpe?g|gif|webp|svg|bmp|avif)(\?.*)?$/i;
+    const isFirebaseImage = (u) => /firebasestorage\.googleapis\.com/.test(u) && /%2F(profile-images|user-uploads|user-assets)%2F/.test(u);
+    let m;
+    while ((m = urlRegex.exec(text)) !== null) {
+        if (m.index > lastIndex) out.push(escapeHTML(text.slice(lastIndex, m.index)));
+        const url = m[0];
+        const looksLikeImage = imageSuffix.test(url) || isFirebaseImage(url);
+        if (looksLikeImage) {
+            out.push(`<a href="${escapeHTML(url)}" target="_blank" rel="noopener"><img src="${escapeHTML(url)}" alt="attachment" style="max-width:100%;max-height:240px;border-radius:10px;margin-top:6px;display:block;border:1px solid var(--border);"></a>`);
+        } else {
+            out.push(`<a href="${escapeHTML(url)}" target="_blank" rel="noopener" style="color:var(--primary);text-decoration:underline;word-break:break-all;">${escapeHTML(url)}</a>`);
+        }
+        lastIndex = m.index + url.length;
+    }
+    if (lastIndex < text.length) out.push(escapeHTML(text.slice(lastIndex)));
+    return out.join('').replace(/\n/g, '<br>');
+}
+
 function addAIMessage(type, text, autoScroll = true) {
     const msg = document.createElement('div');
     msg.className = `ai-message ${type === 'user' ? 'ai-user' : 'ai-bot'}`;
-    msg.innerHTML = `<div>${escapeHTML(text)}</div>`;
+    msg.innerHTML = `<div>${renderAIMessageContent(String(text || ''))}</div>`;
     aiMessages.appendChild(msg);
     if (autoScroll) aiMessages.scrollTop = aiMessages.scrollHeight;
 }
@@ -2893,6 +3563,128 @@ async function handleChatFileSelect(event) {
 function removeChatAttachment(tempId) {
     pendingChatAttachments = pendingChatAttachments.filter(a => a.tempId !== tempId);
     renderChatAttachments();
+}
+
+/* ═══════════════════════════════════════════════
+   ASSETS MANAGER (Firebase Storage, real)
+═══════════════════════════════════════════════ */
+async function handleAssetUpload(event) {
+    const fileList = Array.from(event.target.files || []);
+    event.target.value = '';
+    if (!fileList.length) return;
+    if (!currentUser || !_storage) {
+        showToast('יש להתחבר כדי להעלות נכסים לפיירבייס', 'lock', '#ff9800');
+        showAuthModal();
+        return;
+    }
+    const MAX_BYTES = 25 * 1024 * 1024;
+    for (const file of fileList) {
+        if (file.size > MAX_BYTES) {
+            showToast(`"${file.name}" גדול מדי (עד 25MB)`, 'triangle-exclamation', '#ff9800');
+            continue;
+        }
+        const tempId = 'u-' + Date.now() + '-' + Math.floor(Math.random()*1e6);
+        const placeholder = {
+            id: tempId, name: file.name, url: '', type: file.type || 'application/octet-stream',
+            size: file.size, uploadedAt: Date.now(), storagePath: '', uploading: true
+        };
+        userAssets.unshift(placeholder);
+        renderAssetsGrid();
+        try {
+            const safeName = encodeURIComponent(file.name.replace(/\s+/g, '_'));
+            const path = `user-assets/${currentUser.uid}/${Date.now()}_${safeName}`;
+            const ref = _auth._helpers.storageRef(_storage, path);
+            await _auth._helpers.uploadBytes(ref, file, { contentType: file.type || 'application/octet-stream' });
+            const url = await _auth._helpers.getDownloadURL(ref);
+            const idx = userAssets.findIndex(a => a.id === tempId);
+            if (idx >= 0) {
+                userAssets[idx] = {
+                    ...userAssets[idx],
+                    url, uploading: false, storagePath: path,
+                    id: path // use storage path as stable id
+                };
+            }
+            renderAssetsGrid();
+            saveToStorage();
+            if (currentUser && _fb) saveToFirebase({ silent: true });
+            showToast(`הנכס "${file.name}" הועלה לענן`, 'cloud-arrow-up', '#22c55e');
+        } catch (err) {
+            userAssets = userAssets.filter(a => a.id !== tempId);
+            renderAssetsGrid();
+            showToast(`שגיאה בהעלאה: ${err?.message || 'נכשל'}`, 'triangle-exclamation', '#ff5555');
+        }
+    }
+}
+
+function renderAssetsGrid() {
+    const grid = document.getElementById('assets-grid');
+    const empty = document.getElementById('assets-empty');
+    if (!grid) return;
+    if (!userAssets.length) {
+        grid.innerHTML = '';
+        if (empty) empty.style.display = 'block';
+        return;
+    }
+    if (empty) empty.style.display = 'none';
+    grid.innerHTML = userAssets.map(a => {
+        const isImage = String(a.type || '').startsWith('image/');
+        const ext = (a.name.split('.').pop() || 'file').toLowerCase();
+        const inner = a.uploading
+            ? `<div class="asset-uploading"><i class="fas fa-circle-notch"></i></div>`
+            : isImage && a.url
+                ? `<img src="${a.url}" alt="${escapeHtml(a.name)}" loading="lazy">`
+                : `<div class="asset-ext"><i class="fas fa-file" style="margin-inline-end:5px;"></i>${escapeHtml(ext)}</div>`;
+        const actions = a.uploading ? '' : `
+            <div class="asset-actions">
+                <button title="הוסף לקוד" onclick="event.stopPropagation();insertAssetIntoEditor('${escapeForAttr(a.url)}','${escapeForAttr(a.name)}','${escapeForAttr(a.type)}')"><i class="fas fa-code"></i></button>
+                <button title="העתק קישור" onclick="event.stopPropagation();copyAssetUrl('${escapeForAttr(a.url)}')"><i class="fas fa-copy"></i></button>
+                <button title="מחק" onclick="event.stopPropagation();deleteAsset('${escapeForAttr(a.id)}')"><i class="fas fa-trash"></i></button>
+            </div>`;
+        return `<div class="asset-card" title="${escapeHtml(a.name)}" onclick="insertAssetIntoEditor('${escapeForAttr(a.url)}','${escapeForAttr(a.name)}','${escapeForAttr(a.type)}')">
+            ${inner}${actions}
+        </div>`;
+    }).join('');
+}
+
+function escapeForAttr(s) { return String(s || '').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
+
+function copyAssetUrl(url) {
+    if (!url) return;
+    navigator.clipboard.writeText(url).then(() => showToast('הקישור הועתק', 'copy', '#22c55e'));
+}
+
+function insertAssetIntoEditor(url, name, type) {
+    if (!url) return;
+    const isImage = String(type || '').startsWith('image/');
+    const isVideo = String(type || '').startsWith('video/');
+    const isAudio = String(type || '').startsWith('audio/');
+    let snippet;
+    if (isImage) snippet = `<img src="${url}" alt="${name}" style="max-width:100%;border-radius:8px;">`;
+    else if (isVideo) snippet = `<video src="${url}" controls style="max-width:100%;border-radius:8px;"></video>`;
+    else if (isAudio) snippet = `<audio src="${url}" controls></audio>`;
+    else snippet = `<a href="${url}" target="_blank">${name}</a>`;
+    if (monacoEditor && window.monaco) {
+        const sel = monacoEditor.getSelection();
+        monacoEditor.executeEdits('insert-asset', [{ range: sel, text: snippet, forceMoveMarkers: true }]);
+        monacoEditor.focus();
+    } else {
+        editor.value = (editor.value || '') + snippet;
+    }
+    if (currentFileIndex >= 0) files[currentFileIndex].content = editor.value;
+    livePreview();
+    saveToStorage();
+    showToast('הנכס הוכנס לקוד', 'code', '#22c55e');
+}
+
+async function deleteAsset(assetId) {
+    const asset = userAssets.find(a => a.id === assetId);
+    if (!asset) return;
+    if (!confirm(`למחוק את הנכס "${asset.name}"?`)) return;
+    userAssets = userAssets.filter(a => a.id !== assetId);
+    renderAssetsGrid();
+    saveToStorage();
+    if (currentUser && _fb) saveToFirebase({ silent: true });
+    showToast('הנכס נמחק', 'trash', '#ef4444');
 }
 
 function renderChatAttachments() {
@@ -2960,8 +3752,9 @@ async function handleAIRequest() {
 
         // Build attachment context string for the AI
         const attachmentContext = readyAttachments.length
-            ? '\n\nקבצים שהמשתמש העלה לשימוש באתר:\n' +
-              readyAttachments.map(a => `- ${a.name} (סוג: ${a.type})\n  קישור ישיר: ${a.url}`).join('\n')
+            ? '\n\n=== קבצים שהמשתמש העלה (כבר מאוחסנים ב-Firebase Storage, ה-URL ציבורי ונגיש מכל דפדפן) ===\n' +
+              readyAttachments.map(a => `• ${a.name}  (${a.type})\n  URL: ${a.url}`).join('\n') +
+              '\n\nחובה: השתמש ב-URL-ים האלה ישירות בקוד ה-HTML/CSS/JS שאתה מפיק (לדוגמה: <img src="URL" alt="...">, background-image: url(URL), <video src="URL">). אל תשכפל או תוריד את הקובץ, פשוט קשר אליו דרך ה-URL המוזכר.'
             : '';
 
         const payload = hasFiles
@@ -3538,7 +4331,30 @@ function closeShareProjectModal() { document.getElementById('share-project-modal
 /* ═══════════════════════════════════════════════
    MISC
 ═══════════════════════════════════════════════ */
-function formatCode() { showToast("הקוד עוצב"); }
+function formatCode() { formatActiveDocument(); }
+
+function triggerColorPicker() {
+    const input = document.getElementById('hidden-color-input');
+    if (input) input.click();
+}
+function insertColorAtCursor(event) {
+    const color = event?.target?.value || '#000000';
+    if (monacoEditor && window.monaco) {
+        const sel = monacoEditor.getSelection();
+        monacoEditor.executeEdits('insert-color', [{ range: sel, text: color, forceMoveMarkers: true }]);
+        monacoEditor.focus();
+    }
+    if (currentFileIndex >= 0) files[currentFileIndex].content = editor.value;
+    livePreview(); saveToStorage();
+    showToast(`צבע הוכנס: ${color}`, 'palette', color);
+}
+
+function formatActiveDocument() {
+    if (!monacoEditor) return;
+    monacoEditor.getAction('editor.action.formatDocument')?.run()
+        .then(() => showToast('הקוד עוצב', 'indent', '#22c55e'))
+        .catch(() => showToast('שגיאה בעיצוב', 'triangle-exclamation', '#f59e0b'));
+}
 
 function openSketchModal() {
     const list = document.getElementById('sketch-list');
@@ -3729,6 +4545,7 @@ function init() {
     editor.value = '';
     document.getElementById('current-file-name').textContent = 'לחץ + לפתוח קובץ';
     renderProjectsAndFiles(); renderTabs();
+    renderAssetsGrid();
     ensureConversationLoadedForCurrentFile();
     codeSearchInput.addEventListener('keydown', e => {
         if (e.key === 'Enter') {
@@ -3909,20 +4726,128 @@ function registerHtmlSnippets() {
     });
 }
 
+function registerColorProviders() {
+    const hexToColor = (hex) => {
+        const s = hex.length === 3 ? hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2] : hex;
+        return { red: parseInt(s.slice(0,2),16)/255, green: parseInt(s.slice(2,4),16)/255, blue: parseInt(s.slice(4,6),16)/255, alpha: 1 };
+    };
+    const hexToColorAlpha = (hex) => {
+        const s = hex.length === 4 ? hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2]+hex[3]+hex[3] : hex;
+        return { red: parseInt(s.slice(0,2),16)/255, green: parseInt(s.slice(2,4),16)/255, blue: parseInt(s.slice(4,6),16)/255, alpha: parseInt(s.slice(6,8),16)/255 };
+    };
+    const toHex2 = (n) => Math.round(n*255).toString(16).padStart(2,'0');
+    const colorToHex = (c) => `#${toHex2(c.red)}${toHex2(c.green)}${toHex2(c.blue)}`;
+    const colorToRgba = (c) => c.alpha < 1 ? `rgba(${Math.round(c.red*255)}, ${Math.round(c.green*255)}, ${Math.round(c.blue*255)}, ${parseFloat(c.alpha.toFixed(2))})` : `rgb(${Math.round(c.red*255)}, ${Math.round(c.green*255)}, ${Math.round(c.blue*255)})`;
+
+    const COLOR_RE = /#([0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})\b|rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+))?\s*\)|hsla?\(\s*([\d.]+)\s*,\s*([\d.]+)%\s*,\s*([\d.]+)%\s*(?:,\s*([\d.]+))?\s*\)/g;
+
+    const hslToRgb = (h, s, l) => {
+        s /= 100; l /= 100;
+        const k = n => (n + h/30) % 12;
+        const a = s * Math.min(l, 1-l);
+        const f = n => l - a * Math.max(-1, Math.min(k(n)-3, Math.min(9-k(n), 1)));
+        return { red: f(0), green: f(8), blue: f(4) };
+    };
+
+    const provider = {
+        provideDocumentColors(model) {
+            const text = model.getValue();
+            const colors = [];
+            const regex = /#([0-9a-fA-F]{8}|[0-9a-fA-F]{6}|[0-9a-fA-F]{4}|[0-9a-fA-F]{3})\b|rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)\s*(?:,\s*([\d.]+))?\s*\)|hsla?\(\s*([\d.]+)\s*,\s*([\d.]+)%\s*,\s*([\d.]+)%\s*(?:,\s*([\d.]+))?\s*\)/g;
+            let m;
+            while ((m = regex.exec(text)) !== null) {
+                let color;
+                if (m[0].startsWith('#')) {
+                    color = (m[1].length === 8 || m[1].length === 4) ? hexToColorAlpha(m[1]) : hexToColor(m[1]);
+                } else if (m[0].startsWith('rgb')) {
+                    color = { red: parseInt(m[2])/255, green: parseInt(m[3])/255, blue: parseInt(m[4])/255, alpha: m[5] !== undefined ? parseFloat(m[5]) : 1 };
+                } else {
+                    const rgb = hslToRgb(parseFloat(m[6]), parseFloat(m[7]), parseFloat(m[8]));
+                    color = { ...rgb, alpha: m[9] !== undefined ? parseFloat(m[9]) : 1 };
+                }
+                const startPos = model.getPositionAt(m.index);
+                const endPos   = model.getPositionAt(m.index + m[0].length);
+                colors.push({ color, range: { startLineNumber: startPos.lineNumber, startColumn: startPos.column, endLineNumber: endPos.lineNumber, endColumn: endPos.column } });
+            }
+            return colors;
+        },
+        provideColorPresentations(model, colorInfo) {
+            const c = colorInfo.color;
+            const hex = colorToHex(c);
+            const rgba = colorToRgba(c);
+            const presentations = [{ label: hex }, { label: rgba }];
+            if (c.alpha < 1) {
+                const hexA = `#${toHex2(c.red)}${toHex2(c.green)}${toHex2(c.blue)}${toHex2(c.alpha)}`;
+                presentations.push({ label: hexA });
+            }
+            return presentations;
+        }
+    };
+    ['css', 'html', 'javascript'].forEach(lang => monaco.languages.registerColorProvider(lang, provider));
+}
+
 function initMonacoEditor() {
     if (monacoReady) return monacoReady;
     monacoReady = new Promise(resolve => {
         window.require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.52.2/min/vs' } });
         window.require(['vs/editor/editor.main'], () => {
             registerHtmlSnippets();
+            // Register a custom CodeSphere theme with improved contrast & palette
+            monaco.editor.defineTheme('codesphere-dark', {
+                base: 'vs-dark', inherit: true,
+                rules: [
+                    { token: '', foreground: 'E7ECFF', background: '080A18' },
+                    { token: 'comment', foreground: '8B93B8', fontStyle: 'italic' },
+                    { token: 'keyword', foreground: 'A78BFA', fontStyle: 'bold' },
+                    { token: 'string', foreground: '34D399' },
+                    { token: 'number', foreground: 'FBBF24' },
+                    { token: 'tag', foreground: '22D3EE' },
+                    { token: 'attribute.name', foreground: 'F472B6' },
+                    { token: 'attribute.value', foreground: '34D399' },
+                    { token: 'delimiter', foreground: '94A3B8' }
+                ],
+                colors: {
+                    'editor.background': '#080A18',
+                    'editor.foreground': '#E7ECFF',
+                    'editor.lineHighlightBackground': '#10142780',
+                    'editor.selectionBackground': '#22d3ee33',
+                    'editorCursor.foreground': '#22d3ee',
+                    'editorLineNumber.foreground': '#3f4562',
+                    'editorLineNumber.activeForeground': '#22d3ee',
+                    'editor.inactiveSelectionBackground': '#22d3ee22',
+                    'editorIndentGuide.background': '#1c1f36',
+                    'editorIndentGuide.activeBackground': '#22d3ee55'
+                }
+            });
+            monaco.editor.defineTheme('codesphere-light', {
+                base: 'vs', inherit: true,
+                rules: [],
+                colors: {
+                    'editor.background': '#ffffff',
+                    'editor.lineHighlightBackground': '#eef2ff',
+                    'editorLineNumber.activeForeground': '#0e7490'
+                }
+            });
             monacoEditor = monaco.editor.create(editorElement, {
                 value: editorBuffer,
                 language: 'html',
-                theme: document.body.dataset.theme === 'light' ? 'vs' : 'vs-dark',
+                theme: document.body.dataset.theme === 'light' ? 'codesphere-light' : 'codesphere-dark',
                 automaticLayout: true,
                 lineNumbers: 'on',
-                minimap: { enabled: false },
-                fontSize: 15,
+                minimap: { enabled: true, renderCharacters: false, maxColumn: 80 },
+                fontFamily: "'JetBrains Mono', 'SF Mono', Menlo, Consolas, monospace",
+                fontSize: 14.5,
+                fontLigatures: true,
+                lineHeight: 22,
+                letterSpacing: 0.2,
+                renderWhitespace: 'selection',
+                bracketPairColorization: { enabled: true },
+                guides: { bracketPairs: true, indentation: true, highlightActiveIndentation: true },
+                smoothScrolling: true,
+                cursorBlinking: 'smooth',
+                cursorSmoothCaretAnimation: 'on',
+                padding: { top: 12, bottom: 12 },
+                colorDecorators: true,
                 quickSuggestions: { other: true, comments: true, strings: true },
                 suggestOnTriggerCharacters: true,
                 snippetSuggestions: 'top',
@@ -3934,6 +4859,7 @@ function initMonacoEditor() {
                 autoClosingOvertype: 'always',
                 autoClosingComments: 'always',
                 linkedEditing: true,
+                formatOnPaste: true,
                 suggest: {
                     showSnippets: true,
                     showKeywords: true,
@@ -3945,6 +4871,7 @@ function initMonacoEditor() {
             monacoEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Space, () => {
                 monacoEditor.trigger('keyboard', 'editor.action.triggerSuggest', {});
             });
+            registerColorProviders();
             resolve();
         });
     });
