@@ -1673,8 +1673,15 @@ function upsertFilesFromAI(nextFiles, options = {}) {
         }
     }
 
-    // Open every file returned by the AI in its own tab
-    nextFiles.forEach(nextFile => {
+    // Keep generated files in the current project without automatically opening all tabs.
+    if (activeWorkspaceId !== 'general') {
+        const project = projects.find(p => String(p.id) === activeWorkspaceId);
+        if (project) nextFiles.forEach(nextFile => {
+            const file = files.find(f => f.name === nextFile.name);
+            if (file && !project.fileIds.includes(file.id)) project.fileIds.push(file.id);
+        });
+    }
+    /* nextFiles.forEach(nextFile => {
         const name = String(nextFile?.name || '').toLowerCase();
         const idx = files.findIndex(f => String(f.name || '').toLowerCase() === name);
         if (idx >= 0) {
@@ -1683,10 +1690,11 @@ function upsertFilesFromAI(nextFiles, options = {}) {
         }
     });
 
+    */
     renderProjectsAndFiles();
     renderTabs();
 
-    if (currentFileIndex < 0) currentFileIndex = 0;
+    if (currentFileIndex < 0 && files.length) currentFileIndex = files.findIndex(f => workspaceKeyForFile(f.id) === activeWorkspaceId);
     openFile(currentFileIndex);
     saveToStorage();
 }
@@ -1891,7 +1899,9 @@ async function callAIWorker(route, payload, signal = undefined) {
                     nextNewFileSequence: Number.isFinite(data.nextNewFileSequence) ? data.nextNewFileSequence : 1,
                     workspaceUi: {
                         openTabFileIds: Array.isArray(data.workspaceUi?.openTabFileIds) ? data.workspaceUi.openTabFileIds : [],
-                        activeFileId: data.workspaceUi?.activeFileId || null
+                        activeFileId: data.workspaceUi?.activeFileId || null,
+                        activeWorkspaceId: data.workspaceUi?.activeWorkspaceId || 'general',
+                        workspaceTabs: data.workspaceUi?.workspaceTabs || {}
                     },
                     updatedAt: serverTimestamp()
                 });
@@ -3800,7 +3810,9 @@ async function handleAIRequest() {
         const payload = hasFiles
             ? {
                 message: prompt + attachmentContext,
-                files: [{ name: activeFile.name, content: activeFile.content || '' }],
+                files: activeWorkspaceId === 'general'
+                    ? [{ name: activeFile.name, content: activeFile.content || '' }]
+                    : getPreviewFileScope().map(f => ({ name: f.name, content: f.content || '' })),
                 attachments: readyAttachments.map(a => ({ name: a.name, url: a.url, type: a.type })),
                 history: historyForRequest,
                 activeFileName: activeFile?.name || null
