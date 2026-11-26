@@ -1345,6 +1345,8 @@
 let files = [], projects = [];
 let currentFileIndex = -1;
 let openTabFileIds = [];
+let activeWorkspaceId = 'general';
+let workspaceTabs = { general: { tabs: [], active: null } };
 let nextNewFileSequence = 1;
 let isPreviewOpen = false, isAIPanelOpen = false, isFilesSidebarOpen = false;
 let currentPreviewDevice = 'desktop';
@@ -1705,7 +1707,7 @@ function getProjectForFile(fileId) {
 function getAIContextKey() {
     const currentFile = files[currentFileIndex];
     if (!currentFile) return 'global';
-    return `file:${currentFile.id}`;
+    return activeWorkspaceId !== 'general' ? `project:${activeWorkspaceId}` : `file:${currentFile.id}`;
 }
 
 function ensureConversationLoadedForCurrentFile() {
@@ -2452,7 +2454,34 @@ function saveToStorage() {
     if (!isApplyingRemoteWorkspace) scheduleCloudAutoSave();
 }
 
+function workspaceKeyForFile(fileId) {
+    const project = projects.find(p => p.fileIds.includes(fileId));
+    return project ? String(project.id) : 'general';
+}
+function rememberWorkspaceTabs() {
+    workspaceTabs[activeWorkspaceId] = {
+        tabs: [...openTabFileIds],
+        active: files[currentFileIndex]?.id || null
+    };
+}
+function switchWorkspace(id) {
+    const next = String(id);
+    if (next !== 'general' && !projects.some(p => String(p.id) === next)) return;
+    if (next === activeWorkspaceId) return;
+    rememberWorkspaceTabs();
+    activeWorkspaceId = next;
+    const state = workspaceTabs[next] || { tabs: [], active: null };
+    openTabFileIds = state.tabs.filter(fid => getFileIndexById(fid) >= 0 && workspaceKeyForFile(fid) === next);
+    const activeId = openTabFileIds.includes(state.active) ? state.active : openTabFileIds[0];
+    currentFileIndex = activeId == null ? -1 : getFileIndexById(activeId);
+    editor.value = currentFileIndex >= 0 ? files[currentFileIndex].content || '' : '';
+    setEditorLanguageByFilename(currentFileIndex >= 0 ? files[currentFileIndex].name : '');
+    document.getElementById('current-file-name').textContent = currentFileIndex >= 0 ? files[currentFileIndex].name : 'אין קובץ פתוח';
+    renderProjectsAndFiles(); renderTabs(); livePreview(); updateStats();
+    ensureConversationLoadedForCurrentFile(); saveToStorage();
+}
 function getCurrentWorkspaceSnapshot() {
+    rememberWorkspaceTabs();
     const activeFileId = (currentFileIndex >= 0 && files[currentFileIndex]) ? files[currentFileIndex].id : null;
     return {
         files,
@@ -2463,6 +2492,7 @@ function getCurrentWorkspaceSnapshot() {
         nextNewFileSequence,
         workspaceUi: {
             openTabFileIds: Array.isArray(openTabFileIds) ? [...openTabFileIds] : [],
+            activeWorkspaceId, workspaceTabs,
             activeFileId
         }
     };
@@ -2511,6 +2541,8 @@ function getWorkspaceSignature(workspaceData) {
         nextNewFileSequence: Number.isFinite(workspaceData?.nextNewFileSequence) ? workspaceData.nextNewFileSequence : 1,
         workspaceUi: {
             openTabFileIds: Array.isArray(workspaceData?.workspaceUi?.openTabFileIds) ? workspaceData.workspaceUi.openTabFileIds : [],
+            activeWorkspaceId: workspaceData?.workspaceUi?.activeWorkspaceId || 'general',
+            workspaceTabs: workspaceData?.workspaceUi?.workspaceTabs || {},
             activeFileId: workspaceData?.workspaceUi?.activeFileId || null
         }
     };
@@ -2551,13 +2583,17 @@ function applyWorkspaceData(workspaceData) {
             : [];
         const validFileIds = new Set(files.map(f => f.id));
         // Restore exactly the tabs that were saved — don't force-open anything
-        openTabFileIds = savedOpenTabIds.filter(id => validFileIds.has(id));
+        activeWorkspaceId = String(workspaceData?.workspaceUi?.activeWorkspaceId || 'general');
+        workspaceTabs = workspaceData?.workspaceUi?.workspaceTabs || { general: { tabs: savedOpenTabIds, active: workspaceData?.workspaceUi?.activeFileId || null } };
+        if (activeWorkspaceId !== 'general' && !projects.some(p => String(p.id) === activeWorkspaceId)) activeWorkspaceId = 'general';
+        const restored = workspaceTabs[activeWorkspaceId] || { tabs: [], active: null };
+        openTabFileIds = restored.tabs.filter(id => validFileIds.has(id) && workspaceKeyForFile(id) === activeWorkspaceId);
 
         if (openTabFileIds.length === 0) {
             // No tabs were open (first load or user closed all tabs)
             currentFileIndex = -1;
         } else {
-            const savedActiveFileId = workspaceData?.workspaceUi?.activeFileId;
+            const savedActiveFileId = restored.active;
             const activeFileId = (validFileIds.has(savedActiveFileId) && openTabFileIds.includes(savedActiveFileId))
                 ? savedActiveFileId
                 : openTabFileIds[0];
@@ -2934,6 +2970,10 @@ function shareViaEmail() {
    PREVIEW
 ═══════════════════════════════════════════════ */
 function getPreviewFileScope() {
+    if (activeWorkspaceId !== 'general') {
+        const project = projects.find(p => String(p.id) === activeWorkspaceId);
+        return project ? files.filter(f => project.fileIds.includes(f.id)) : [];
+    }
     if (currentFileIndex < 0) return [];
     const fileId = files[currentFileIndex]?.id;
     const project = getProjectForFile(fileId);
@@ -3071,7 +3111,7 @@ function livePreview() {
     if (!scope.length) return;
     if (currentFileIndex >= 0 && files[currentFileIndex]) files[currentFileIndex].content = editor.value;
     const activeFileName = files[currentFileIndex]?.name || '';
-    const html = injectPreviewInspector(bundleToHtml(scope, activeFileName));
+    const html = injectPreviewInspector(bundleToHtml(scope, activeWorkspaceId === 'general' ? activeFileName : 'index.html'));
     const blob = new Blob([html], { type: 'text/html' });
     preview.src = URL.createObjectURL(blob);
     preview.addEventListener('load', () => {
@@ -3109,7 +3149,7 @@ function openPreviewInNewTab() {
     const scope = getPreviewFileScope();
     if (!scope.length) return;
     const activeFileName = files[currentFileIndex]?.name || '';
-    const html = bundleToHtml(scope, activeFileName);
+    const html = bundleToHtml(scope, activeWorkspaceId === 'general' ? activeFileName : 'index.html');
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
     window.open(url, '_blank');
@@ -3857,7 +3897,7 @@ function ensureActiveFileTab() {
 
 function reconcileOpenTabs() {
     // Only remove stale tab IDs — never force-open any tab automatically
-    const validIds = new Set(files.map(file => file.id));
+    const validIds = new Set(files.filter(file => workspaceKeyForFile(file.id) === activeWorkspaceId).map(file => file.id));
     openTabFileIds = openTabFileIds.filter(fileId => validIds.has(fileId));
 }
 
@@ -3895,7 +3935,7 @@ function renderProjectsAndFiles() {
                     <i class="fas fa-plus" style="font-size:10px;"></i> הוסף קובץ</div>`;
             }
             return `<div class="project-item">
-                <div class="project-header" onclick="toggleProject(${project.id})">
+                <div class="project-header" onclick="switchWorkspace(${project.id});toggleProject(${project.id})">
                     <i class="fas fa-chevron-${project.expanded?'down':'left'}" style="font-size:9px;color:var(--text-muted);"></i>
                     <i class="fas fa-folder${project.expanded?'-open':''}" style="color:#f59e0b;font-size:13px;"></i>
                     <span class="project-name">${project.name}</span>
@@ -3910,8 +3950,8 @@ function renderProjectsAndFiles() {
         }).join('');
 
     const unassigned = files.filter(f =>
-        !inProject.has(f.id) && (!searchTerm || f.name.toLowerCase().includes(searchTerm)));
-    filesList.innerHTML = unassigned.length === 0
+        activeWorkspaceId === 'general' && !inProject.has(f.id) && (!searchTerm || f.name.toLowerCase().includes(searchTerm)));
+    filesList.innerHTML = `<div class="file-item" onclick="switchWorkspace('general')" style="cursor:pointer;font-weight:600;">קבצים כלליים ${activeWorkspaceId === 'general' ? '✓' : ''}</div>` + (unassigned.length === 0
         ? `<div style="padding:8px 16px;color:#666;font-size:12px;">${files.length>0?'כל הקבצים בפרויקטים':'אין קבצים'}</div>`
         : unassigned.map(f => {
             const fi = files.findIndex(x => x.id === f.id);
@@ -3927,7 +3967,7 @@ function renderProjectsAndFiles() {
                         <i class="fas fa-trash"></i></button>
                 </div>
             </div>`;
-          }).join('');
+          }).join(''));
 }
 
 function renderTabs() {
@@ -3949,6 +3989,8 @@ function renderTabs() {
 ═══════════════════════════════════════════════ */
 function openFile(i) {
     if (i < 0 || i >= files.length) return;
+    const targetWorkspace = workspaceKeyForFile(files[i].id);
+    if (targetWorkspace !== activeWorkspaceId) switchWorkspace(targetWorkspace);
     if (currentFileIndex >= 0 && currentFileIndex < files.length) {
         persistAIConversation();
     }
@@ -4020,6 +4062,7 @@ function newFile() {
     const fileSequence = nextNewFileSequence++;
     const f = { id: Date.now(), name: `קובץ-${fileSequence}.html`, content: '' };
     files.push(f);
+    if (activeWorkspaceId !== 'general') projects.find(p => String(p.id) === activeWorkspaceId)?.fileIds.push(f.id);
     currentFileIndex = files.length - 1;
     openTabFileIds.push(f.id); // Explicitly open the new file's tab
     editor.value = f.content;
@@ -4217,6 +4260,8 @@ function deleteFile(fileId) {
 
 function deleteProject(id) {
     if (!confirm("למחוק את הפרויקט?")) return;
+    if (activeWorkspaceId === String(id)) switchWorkspace('general');
+    delete workspaceTabs[String(id)];
     projects = projects.filter(p => p.id !== id);
     renderProjectsAndFiles();
     saveToStorage();
